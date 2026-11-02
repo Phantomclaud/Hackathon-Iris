@@ -169,11 +169,9 @@ export const CorporateView: React.FC<CorporateViewProps> = ({ language }) => {
 
   // Email to Case Modal State
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
-  const [emailTopic, setEmailTopic] = useState('RE: Urgent Breach of Exclusivity and Supply Agreement - TechNova SG');
-  const [emailSender, setEmailSender] = useState('gc@technovasg.com');
-  const [emailBody, setEmailBody] = useState(
-    'Dear Counsel,\n\nWe received formal notice this morning that Apex Logistics has entered into a parallel distribution contract with a direct competitor in Jurong, in clear violation of Clause 14 (Exclusivity) of our 2025 Master Supply Agreement. They claim force majeure due to red sea freight disruptions, but our internal shipping logs indicate all deliveries were timely fulfilled. Estimated commercial damages are SGD $850,000.\n\nPlease urgently review our attached correspondence folders and advise on urgent interim injunction options in the High Court.\n\nBest regards,\nGeneral Counsel, TechNova Systems SG'
-  );
+  const [emailTopic, setEmailTopic] = useState('');
+  const [emailSender, setEmailSender] = useState('');
+  const [emailBody, setEmailBody] = useState('');
   const [isParsingEmail, setIsParsingEmail] = useState(false);
 
   // New Folder Creation State
@@ -747,7 +745,7 @@ export const CorporateView: React.FC<CorporateViewProps> = ({ language }) => {
               <Search className="w-3.5 h-3.5 absolute left-2.5 top-3 text-slate-500" />
               <input
                 type="text"
-                placeholder="Search files, tag notes or admissions..."
+                placeholder="Search by file name, summary or note..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full bg-slate-900 border border-slate-800 rounded-lg pl-8 pr-3 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
@@ -778,7 +776,7 @@ export const CorporateView: React.FC<CorporateViewProps> = ({ language }) => {
                     <label className="block text-[10px] text-slate-400 mb-0.5">File Name</label>
                     <input
                       type="text"
-                      placeholder="e.g. Master_Agreement.pdf"
+                      placeholder="e.g. Employment_Contract.pdf"
                       value={newFileName}
                       onChange={(e) => setNewFileName(e.target.value)}
                       required
@@ -854,7 +852,7 @@ export const CorporateView: React.FC<CorporateViewProps> = ({ language }) => {
                   <label className="block text-[10px] text-slate-400 mb-0.5">Content Summary / Evidence Quotation</label>
                   <input
                     type="text"
-                    placeholder="Brief summary of clause, tender or admission contained..."
+                    placeholder="e.g. Clause 9.1: 1 month written notice required to terminate"
                     value={fileSummaryText}
                     onChange={(e) => setFileSummaryText(e.target.value)}
                     className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
@@ -865,7 +863,7 @@ export const CorporateView: React.FC<CorporateViewProps> = ({ language }) => {
                   <label className="block text-[10px] text-slate-400 mb-0.5">Attorney Notes / Citation Tracking</label>
                   <input
                     type="text"
-                    placeholder="Internal counsel notes (e.g., Clause 14 exclusivity breach)..."
+                    placeholder="e.g. No notice was given before dismissal"
                     value={newFileNotes}
                     onChange={(e) => setNewFileNotes(e.target.value)}
                     className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none"
@@ -1536,7 +1534,7 @@ export const CorporateView: React.FC<CorporateViewProps> = ({ language }) => {
                   rows={3}
                   value={editNotes}
                   onChange={(e) => setEditNotes(e.target.value)}
-                  placeholder="e.g., Cross-examine Director Tan on timestamp discrepancy between email and MPA berth log..."
+                  placeholder="e.g. Ask HR when the termination letter was actually sent"
                   className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
                 />
               </div>
@@ -1663,7 +1661,7 @@ export const CorporateView: React.FC<CorporateViewProps> = ({ language }) => {
             <form onSubmit={handleAddFolder} className="space-y-3">
               <input
                 type="text"
-                placeholder="Folder name (e.g. 5_Expert_Reports)..."
+                placeholder="e.g. 2_Employment_Contracts"
                 value={newFolderName}
                 onChange={(e) => setNewFolderName(e.target.value)}
                 autoFocus
