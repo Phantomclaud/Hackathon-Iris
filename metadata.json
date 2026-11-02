@@ -1,0 +1,6 @@
+{
+  "name": "Iris - Singapore Law AI Intelligence",
+  "description": "Singapore Legal advisory and corporate intelligence platform with statute and precedent grounding in English, Chinese, Malay, and Tamil.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
