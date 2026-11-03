@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Building2,
   FolderPlus,
@@ -23,6 +23,7 @@ import {
   Lock,
   Shield,
   Edit3,
+  ChevronDown,
   SlidersHorizontal,
   AlertTriangle,
   X,
@@ -30,6 +31,7 @@ import {
   MessageSquare
 } from 'lucide-react';
 import {
+  CaseStatus,
   CorporateCase,
   DualSideFlawAnalysis,
   UploadedFileItem,
@@ -41,6 +43,11 @@ import {
 } from '../types/legal';
 import { CORPORATE_SAMPLE_CASE } from '../data/singaporeLawData';
 import { translations } from '../translations';
+import { SourceFlags } from './SourceFlags';
+import { parseEml, ParsedEmail } from '../utils/emlParser';
+import { CASE_STUDIES } from '../data/caseStudies';
+import { CASE_RULINGS, CourtRuling } from '../data/caseRulings';
+import { isTestCitation } from '../data/evaluationSplit';
 
 interface CorporateViewProps {
   language: Language;
@@ -137,26 +144,197 @@ export const SOURCE_TYPE_META: Record<SourceTypeTag, { label: string; chipClass:
   expert_report: {
     label: '🔬 Expert Report',
     chipClass: 'bg-blue-950/80 text-blue-300 border-blue-700'
+  },
+  court_judgment: {
+    label: '⚖️ Court Judgment',
+    chipClass: 'bg-slate-900/90 text-slate-300 border-slate-600'
   }
 };
+
+const CORPORATE_CASES_KEY = 'iris-corporate-cases';
+
+const SAMPLE_CORPORATE_CASE: CorporateCase = {
+  id: 'case-vanguard-01',
+  referenceNumber: CORPORATE_SAMPLE_CASE.referenceNumber,
+  caseTitle: CORPORATE_SAMPLE_CASE.caseTitle,
+  clientName: CORPORATE_SAMPLE_CASE.clientName,
+  adverseParty: CORPORATE_SAMPLE_CASE.adverseParty,
+  disputeValue: CORPORATE_SAMPLE_CASE.disputeValue,
+  courtJurisdiction: CORPORATE_SAMPLE_CASE.courtJurisdiction,
+  practiceArea: CORPORATE_SAMPLE_CASE.practiceArea,
+  dateCreated: CORPORATE_SAMPLE_CASE.dateCreated,
+  folders: [...CORPORATE_SAMPLE_CASE.folders],
+  files: [...CORPORATE_SAMPLE_CASE.files]
+};
+
+const CASE_STUDY_CASES: CorporateCase[] = CASE_STUDIES.map((cs) => {
+  const [claimant, respondent] = cs.caseName.split(/ v /);
+  const heldOut = isTestCitation(cs.citation);
+  return {
+    id: cs.id,
+    referenceNumber: cs.citation || cs.fileName,
+    caseTitle: cs.caseName,
+    clientName: claimant?.trim() || cs.caseName,
+    adverseParty: respondent?.trim() || 'Not stated',
+    disputeValue: 'Not applicable (case study)',
+    courtJurisdiction: cs.court,
+    practiceArea: cs.subjectArea,
+    dateCreated: String(cs.year),
+    status: 'archived',
+    folders: ['1_Judgment'],
+    files: [
+      {
+        id: `${cs.id}-judgment`,
+        folderName: '1_Judgment',
+        fileName: cs.fileName,
+        fileType: 'pdf',
+        sizeBytes: 0,
+        uploadedAt: '',
+        tags: {
+          relevance: 'high',
+          confidentiality: 'open_evidence',
+          sourceType: 'court_judgment',
+          customNotes: heldOut ? undefined : cs.notes || undefined
+        },
+        contentSummary: heldOut
+          ? `Facts: ${cs.facts}\nIssues: ${cs.issues}`
+          : `Facts: ${cs.facts}\nIssues: ${cs.issues}\nHolding: ${cs.ratioDecidendi}\nSignificance: ${cs.significance}`
+      }
+    ]
+  };
+});
+
+function loadCorporateCases(): CorporateCase[] {
+  let stored: CorporateCase[] = [];
+  try {
+    const parsed = JSON.parse(localStorage.getItem(CORPORATE_CASES_KEY) || 'null');
+    if (Array.isArray(parsed)) stored = parsed;
+  } catch {
+    // Unreadable saved data falls back to the built-in cases
+  }
+  if (stored.length === 0) return [SAMPLE_CORPORATE_CASE, ...CASE_STUDY_CASES];
+  const heldOutCases = new Map(CASE_STUDY_CASES.filter((c) => isTestCitation(c.referenceNumber)).map((c) => [c.id, c]));
+  const shippingTerms = /demurrage|laycan|free pratique|notice of readiness|tuas|charterparty/i;
+  const migrated = stored.map((c) => {
+    if (c.id === SAMPLE_CORPORATE_CASE.id && c.caseTitle !== SAMPLE_CORPORATE_CASE.caseTitle) return SAMPLE_CORPORATE_CASE;
+    const auditText = [...(c.lastAudit?.claimantFlaws ?? []), ...(c.lastAudit?.respondentFlaws ?? [])]
+      .map((f) => `${f.title} ${f.description}`)
+      .join(' ');
+    return shippingTerms.test(auditText) ? { ...c, lastAudit: undefined, rulingComparison: undefined } : c;
+  });
+  const cleaned = migrated.map((c) => heldOutCases.get(c.id) ?? c);
+  const storedIds = new Set(cleaned.map((c) => c.id));
+  return [...cleaned, ...CASE_STUDY_CASES.filter((c) => !storedIds.has(c.id))];
+}
 
 export const CorporateView: React.FC<CorporateViewProps> = ({ language }) => {
   const t = translations[language];
 
-  // Active Corporate Case State
-  const [activeCase, setActiveCase] = useState<CorporateCase>({
-    id: 'case-vanguard-01',
-    referenceNumber: CORPORATE_SAMPLE_CASE.referenceNumber,
-    caseTitle: CORPORATE_SAMPLE_CASE.caseTitle,
-    clientName: CORPORATE_SAMPLE_CASE.clientName,
-    adverseParty: CORPORATE_SAMPLE_CASE.adverseParty,
-    disputeValue: CORPORATE_SAMPLE_CASE.disputeValue,
-    courtJurisdiction: CORPORATE_SAMPLE_CASE.courtJurisdiction,
-    practiceArea: CORPORATE_SAMPLE_CASE.practiceArea,
-    dateCreated: CORPORATE_SAMPLE_CASE.dateCreated,
-    folders: [...CORPORATE_SAMPLE_CASE.folders],
-    files: [...CORPORATE_SAMPLE_CASE.files]
+  // Saved corporate cases, kept in the browser so each one can be reopened later
+  const [cases, setCases] = useState<CorporateCase[]>(loadCorporateCases);
+  const [activeCaseId, setActiveCaseId] = useState<string>(cases[0].id);
+  const activeCase = cases.find((c) => c.id === activeCaseId) ?? cases[0];
+  const activeStatus: CaseStatus = activeCase.status ?? 'active';
+  const openCases = cases.filter((c) => (c.status ?? 'active') !== 'archived');
+  const archivedCases = cases.filter((c) => c.status === 'archived');
+  const [isArchiveOpen, setIsArchiveOpen] = useState(false);
+  const [archiveQuery, setArchiveQuery] = useState('');
+  const visibleArchivedCases = archivedCases.filter((c) => {
+    const q = archiveQuery.trim().toLowerCase();
+    return !q || [c.caseTitle, c.referenceNumber, c.practiceArea, c.courtJurisdiction, c.clientName, c.adverseParty]
+      .some((v) => v.toLowerCase().includes(q));
   });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(CORPORATE_CASES_KEY, JSON.stringify(cases));
+    } catch {
+      // Storage unavailable: cases stay in memory for this session
+    }
+  }, [cases]);
+
+  const updateCase = (id: string, change: (c: CorporateCase) => CorporateCase) => {
+    setCases((prev) => prev.map((c) => (c.id === id ? change(c) : c)));
+  };
+
+  const setActiveCase = (next: CorporateCase) => updateCase(next.id, () => next);
+
+  const auditResult = activeCase.lastAudit ?? null;
+  const setAuditResult = (result: DualSideFlawAnalysis | null) =>
+    updateCase(activeCaseId, (c) => ({ ...c, lastAudit: result ?? undefined }));
+
+  const openCase = (id: string) => {
+    setActiveCaseId(id);
+    setSelectedFolder('all');
+    setTagFilterType('all');
+    setTagFilterValue('all');
+    setSearchQuery('');
+    setSelectedFileForPreview(null);
+    setEditingFile(null);
+  };
+
+  const setCaseStatus = (status: CaseStatus) => {
+    const today = new Date().toISOString().split('T')[0];
+    updateCase(activeCaseId, (c) => ({
+      ...c,
+      status,
+      completedAt: status === 'active' ? undefined : (c.completedAt ?? today),
+      archivedAt: status === 'archived' ? today : undefined
+    }));
+  };
+
+  const ruling: CourtRuling | undefined = CASE_RULINGS[activeCase.id];
+  const isHeldOut = isTestCitation(activeCase.referenceNumber);
+  const revealRuling = !isHeldOut || !!activeCase.rulingComparison;
+  const [isComparingRuling, setIsComparingRuling] = useState(false);
+  const [rulingError, setRulingError] = useState('');
+
+  const auditPointsOf = (analysis: DualSideFlawAnalysis) => [
+    ...analysis.claimantFlaws.map((f) => ({ id: `claimant:${f.id}`, side: 'Claimant', title: f.title, description: f.description })),
+    ...analysis.respondentFlaws.map((f) => ({ id: `respondent:${f.id}`, side: 'Respondent', title: f.title, description: f.description }))
+  ];
+  const auditPoints = auditResult ? auditPointsOf(auditResult) : [];
+  const comparisonById = new Map((activeCase.rulingComparison || []).map((r) => [r.id, r]));
+
+  const compareWithRuling = async () => {
+    if (!ruling) return;
+    const caseId = activeCase.id;
+    setIsComparingRuling(true);
+    setRulingError('');
+    try {
+      const audit = await runAudit();
+      if (!audit) {
+        setRulingError('The AI audit is unavailable right now. Wait a minute, then try again.');
+        return;
+      }
+      const points = auditPointsOf(audit);
+      if (points.length === 0) {
+        setRulingError('The audit returned no points to compare. Try again.');
+        return;
+      }
+      const response = await fetch('/api/corporate/compare-ruling', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ flaws: points, ruling, language })
+      });
+      if (!response.ok) {
+        const detail = await response.text();
+        console.error('Ruling comparison failed:', response.status, detail);
+        throw new Error(String(response.status));
+      }
+      const data = await response.json();
+      updateCase(caseId, (c) => ({ ...c, rulingComparison: data.results }));
+    } catch (err: any) {
+      console.error('Ruling comparison failed:', err);
+      setRulingError(
+        err?.message === '503'
+          ? 'The AI model is busy right now. Wait a minute, then press Compare again.'
+          : 'Comparison failed. Check the terminal for details, then try again.'
+      );
+    } finally {
+      setIsComparingRuling(false);
+    }
+  };
 
   // Folder & Tag Filter State
   const [selectedFolder, setSelectedFolder] = useState<string>('all');
@@ -173,6 +351,8 @@ export const CorporateView: React.FC<CorporateViewProps> = ({ language }) => {
   const [emailSender, setEmailSender] = useState('');
   const [emailBody, setEmailBody] = useState('');
   const [isParsingEmail, setIsParsingEmail] = useState(false);
+  const [importedEmails, setImportedEmails] = useState<ParsedEmail[]>([]);
+  const [selectedEmailIndex, setSelectedEmailIndex] = useState<number | null>(null);
 
   // New Folder Creation State
   const [isAddFolderModalOpen, setIsAddFolderModalOpen] = useState(false);
@@ -196,8 +376,18 @@ export const CorporateView: React.FC<CorporateViewProps> = ({ language }) => {
   const [editNotes, setEditNotes] = useState('');
 
   // Dual Side Audit State
-  const [auditResult, setAuditResult] = useState<DualSideFlawAnalysis | null>(null);
   const [isRunningAudit, setIsRunningAudit] = useState(false);
+  const [auditError, setAuditError] = useState('');
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const isBusy = isRunningAudit || isComparingRuling;
+
+  useEffect(() => {
+    if (!isBusy) return;
+    const started = Date.now();
+    setElapsedSeconds(0);
+    const timer = setInterval(() => setElapsedSeconds(Math.round((Date.now() - started) / 1000)), 1000);
+    return () => clearInterval(timer);
+  }, [isBusy]);
   const [flawActiveTab, setFlawActiveTab] = useState<'claimant' | 'respondent' | 'sources' | 'precedents'>('claimant');
 
   // Open Edit Modal for a given file
@@ -290,6 +480,22 @@ export const CorporateView: React.FC<CorporateViewProps> = ({ language }) => {
     setEditingFile(null);
   };
 
+  const handleEmlFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    const parsed = await Promise.all(files.map(async (file) => parseEml(await file.text(), file.name)));
+    setImportedEmails(parsed);
+    setSelectedEmailIndex(null);
+    e.target.value = '';
+  };
+
+  const selectImportedEmail = (index: number) => {
+    const email = importedEmails[index];
+    setSelectedEmailIndex(index);
+    setEmailTopic(email.subject);
+    setEmailSender(email.from);
+    setEmailBody(email.body);
+  };
+
   // Parse Email to Create New Case
   const handleParseEmailToCase = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -345,12 +551,9 @@ export const CorporateView: React.FC<CorporateViewProps> = ({ language }) => {
         ]
       };
 
-      setActiveCase(newCaseObj);
-      setAuditResult(null);
+      setCases((prev) => [newCaseObj, ...prev]);
+      openCase(newCaseObj.id);
       setIsEmailModalOpen(false);
-      setSelectedFolder('all');
-      setTagFilterType('all');
-      setTagFilterValue('all');
     } catch (err) {
       console.error(err);
     } finally {
@@ -359,23 +562,32 @@ export const CorporateView: React.FC<CorporateViewProps> = ({ language }) => {
   };
 
   // Run Corporate Flaw Audit
-  const handleRunAudit = async () => {
+  const runAudit = async (): Promise<DualSideFlawAnalysis | null> => {
     setIsRunningAudit(true);
+    setAuditError('');
+    const caseId = activeCase.id;
     try {
       const response = await fetch('/api/corporate/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ caseData: activeCase, language })
+        body: JSON.stringify({ caseData: { ...activeCase, lastAudit: undefined, rulingComparison: undefined }, language })
       });
 
       if (!response.ok) throw new Error('Corporate analysis failed');
       const data = await response.json();
-      setAuditResult(data.result);
+      updateCase(caseId, (c) => ({ ...c, lastAudit: data.result, rulingComparison: undefined }));
+      return data.result as DualSideFlawAnalysis;
     } catch (err) {
       console.error('Audit failed:', err);
+      setAuditError('The AI audit is unavailable right now. Wait a minute, then run it again.');
+      return null;
     } finally {
       setIsRunningAudit(false);
     }
+  };
+
+  const handleRunAudit = () => {
+    void runAudit();
   };
 
   // Add Folder Handler
@@ -480,27 +692,98 @@ export const CorporateView: React.FC<CorporateViewProps> = ({ language }) => {
               <Mail className="w-4 h-4 text-amber-200" />
               <span>{t.newCaseFromEmail}</span>
             </button>
-
-            <button
-              type="button"
-              onClick={handleRunAudit}
-              disabled={isRunningAudit}
-              className="flex items-center space-x-2 px-4 py-2.5 bg-red-700 hover:bg-red-600 text-white rounded-xl text-xs font-semibold shadow-lg shadow-red-950/50 transition disabled:opacity-60 cursor-pointer"
-            >
-              {isRunningAudit ? (
-                <>
-                  <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  <span>{t.runningAudit}</span>
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-4 h-4 text-amber-300" />
-                  <span>{t.runCorporateAudit}</span>
-                </>
-              )}
-            </button>
           </div>
         </div>
+      </div>
+
+      {/* Case Folders */}
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-lg space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center space-x-2">
+            <Folder className="w-4 h-4 text-amber-400" />
+            <span>Case Folders</span>
+          </h3>
+          <span className="text-[10px] text-slate-500">
+            {openCases.length} open · {archivedCases.length} archived
+          </span>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          {openCases.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => openCase(c.id)}
+              className={`text-left px-3 py-2 rounded-xl border text-xs transition cursor-pointer ${
+                c.id === activeCaseId
+                  ? 'border-amber-500 bg-amber-950/40 text-white'
+                  : 'border-slate-700 bg-slate-950 text-slate-300 hover:bg-slate-800'
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                <Folder className="w-3.5 h-3.5 text-amber-400" />
+                <span className="font-semibold truncate max-w-[220px]">{c.caseTitle}</span>
+                {c.status === 'completed' && (
+                  <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800">
+                    Completed
+                  </span>
+                )}
+              </div>
+              <div className="text-[10px] text-slate-500 font-mono mt-0.5">{c.referenceNumber}</div>
+            </button>
+          ))}
+        </div>
+
+        {archivedCases.length > 0 && (
+          <div className="space-y-2 border-t border-slate-800 pt-3">
+            <button
+              type="button"
+              onClick={() => setIsArchiveOpen((open) => !open)}
+              className="flex items-center space-x-1.5 text-[10px] uppercase font-semibold text-slate-500 hover:text-slate-300 cursor-pointer"
+            >
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isArchiveOpen ? '' : '-rotate-90'}`} />
+              <span>Archive (reference material) · {archivedCases.length}</span>
+            </button>
+            {isArchiveOpen && (
+            <div className="space-y-2">
+            <input
+              type="text"
+              value={archiveQuery}
+              onChange={(e) => setArchiveQuery(e.target.value)}
+              placeholder="Search archived cases by name, citation, court or area..."
+              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500"
+            />
+            {visibleArchivedCases.length === 0 && (
+              <p className="text-[11px] text-slate-500">No archived cases match "{archiveQuery}".</p>
+            )}
+            <div className="max-h-56 overflow-y-auto pr-1">
+            <div className="flex flex-wrap gap-2">
+              {visibleArchivedCases.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => openCase(c.id)}
+                  className={`text-left px-3 py-2 rounded-xl border text-xs transition cursor-pointer ${
+                    c.id === activeCaseId
+                      ? 'border-amber-500 bg-amber-950/40 text-white'
+                      : 'border-slate-800 bg-slate-950/60 text-slate-400 hover:bg-slate-800'
+                  }`}
+                >
+                  <div className="flex items-center space-x-2">
+                    <Folder className="w-3.5 h-3.5 text-slate-500" />
+                    <span className="font-semibold truncate max-w-[220px]">{c.caseTitle}</span>
+                  </div>
+                  <div className="text-[10px] text-slate-500 font-mono mt-0.5">
+                    {c.referenceNumber}{c.archivedAt ? ` · Archived ${c.archivedAt}` : ''}
+                  </div>
+                </button>
+              ))}
+            </div>
+            </div>
+            </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Active Matter Info Bar */}
@@ -535,6 +818,54 @@ export const CorporateView: React.FC<CorporateViewProps> = ({ language }) => {
           <div>
             <span className="text-slate-500 block text-[10px] uppercase font-semibold">{t.disputeValueLabel}</span>
             <span className="font-bold text-emerald-400 font-mono">{activeCase.disputeValue}</span>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-4 mt-4 border-t border-slate-800">
+          <span className="text-[11px] text-slate-400">
+            Status: <strong className="text-slate-200 capitalize">{activeStatus}</strong>
+            {activeCase.completedAt ? ` · Completed ${activeCase.completedAt}` : ''}
+            {activeCase.archivedAt ? ` · Archived ${activeCase.archivedAt}` : ''}
+          </span>
+          <div className="flex flex-wrap gap-2">
+            {activeStatus === 'active' && (
+              <button
+                type="button"
+                onClick={() => setCaseStatus('completed')}
+                className="flex items-center space-x-1.5 px-3 py-1.5 bg-emerald-950/80 hover:bg-emerald-900 text-emerald-200 border border-emerald-700/80 rounded-xl text-xs font-semibold transition cursor-pointer"
+              >
+                <CheckCircle className="w-3.5 h-3.5" />
+                <span>Mark as completed</span>
+              </button>
+            )}
+            {activeStatus === 'completed' && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setCaseStatus('archived')}
+                  className="flex items-center space-x-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 rounded-xl text-xs font-semibold transition cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Archive for reference</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCaseStatus('active')}
+                  className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700 rounded-xl text-xs font-semibold transition cursor-pointer"
+                >
+                  Reopen
+                </button>
+              </>
+            )}
+            {activeStatus === 'archived' && (
+              <button
+                type="button"
+                onClick={() => setCaseStatus('active')}
+                className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700 rounded-xl text-xs font-semibold transition cursor-pointer"
+              >
+                Restore to active
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -1064,6 +1395,23 @@ export const CorporateView: React.FC<CorporateViewProps> = ({ language }) => {
 
         {/* Right Column: Dual-Sided Flaw Matrix & Precedent Tracker (7 cols on lg) */}
         <div className="lg:col-span-7 space-y-6">
+          {isBusy && (
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-2 shadow-lg">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-semibold text-slate-200">
+                  {isRunningAudit ? 'Running audit' : 'Comparing with ruling'}
+                </span>
+                <span className="font-mono text-slate-400">{elapsedSeconds}s</span>
+              </div>
+              <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden">
+                <div className="h-full w-full bg-gradient-to-r from-red-700 via-amber-500 to-red-700 rounded-full animate-pulse" />
+              </div>
+              <p className="text-[11px] text-slate-500">
+                Exhaustive audits can take 1 to 2 minutes. The bar shows that the request is running, not how far along it is.
+              </p>
+            </div>
+          )}
+
           {!auditResult ? (
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 sm:p-10 text-center space-y-4 shadow-xl">
               <div className="w-16 h-16 rounded-2xl bg-slate-800 flex items-center justify-center mx-auto text-amber-400">
@@ -1083,6 +1431,7 @@ export const CorporateView: React.FC<CorporateViewProps> = ({ language }) => {
                 <Sparkles className="w-4 h-4 text-amber-200" />
                 <span>Run Full Dual-Sided Audit</span>
               </button>
+              {auditError && <p className="text-[11px] text-rose-300 max-w-md mx-auto">{auditError}</p>}
             </div>
           ) : (
             <div className="bg-slate-900 border border-slate-800 rounded-2xl shadow-xl overflow-hidden">
@@ -1094,6 +1443,14 @@ export const CorporateView: React.FC<CorporateViewProps> = ({ language }) => {
                     {t.dualSideFlawAnalysisTitle}
                   </span>
                 </div>
+                <button
+                  type="button"
+                  onClick={handleRunAudit}
+                  disabled={isRunningAudit}
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 rounded-xl text-xs font-semibold transition disabled:opacity-40 cursor-pointer"
+                >
+                  {isRunningAudit ? 'Re-running audit...' : 'Re-run audit'}
+                </button>
 
                 <div className="flex items-center space-x-2 text-xs">
                   <span className="px-2 py-0.5 rounded bg-red-950 text-red-300 border border-red-800 font-mono">
@@ -1103,6 +1460,10 @@ export const CorporateView: React.FC<CorporateViewProps> = ({ language }) => {
                     Respondent Flaws: {auditResult.respondentFlaws.length}
                   </span>
                 </div>
+              </div>
+
+              <div className="p-4 border-b border-slate-800">
+                <SourceFlags text={JSON.stringify(auditResult)} />
               </div>
 
               {/* Navigation Tabs */}
@@ -1433,6 +1794,104 @@ export const CorporateView: React.FC<CorporateViewProps> = ({ language }) => {
         </div>
       </div>
 
+      {/* Court Ruling */}
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl shadow-xl overflow-hidden">
+        <div className="p-4 bg-slate-950 border-b border-slate-800 flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center space-x-2">
+            <Scale className="w-4 h-4 text-amber-400" />
+            <span className="text-xs font-bold uppercase tracking-wider text-white">Court Ruling</span>
+            {ruling && !isHeldOut && (
+              <span className="text-[10px] text-slate-400">Reference only: in the knowledge base, not used for testing</span>
+            )}
+          </div>
+          {ruling && isHeldOut && (
+            <button
+              type="button"
+              onClick={compareWithRuling}
+              disabled={isComparingRuling || isRunningAudit}
+              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 rounded-xl text-xs font-semibold transition disabled:opacity-40 cursor-pointer"
+            >
+              {isComparingRuling ? 'Auditing and comparing...' : 'Audit and compare with ruling'}
+            </button>
+          )}
+        </div>
+
+        {rulingError && <p className="px-5 pt-4 text-xs text-rose-300">{rulingError}</p>}
+
+        <div className="p-5 space-y-5 text-xs">
+          {!ruling || !revealRuling ? (
+            <p className="text-slate-400">
+              {ruling
+                ? 'Held-out test case. The ruling stays hidden until the audit has been run and compared, so the audit is not influenced by it.'
+                : 'No court ruling is on file for this matter. Rulings are available for the judgments in the case library.'}
+            </p>
+          ) : (
+            <>
+              <div className="space-y-1.5">
+                <h4 className="font-bold text-white uppercase tracking-wide text-[11px]">Final decision</h4>
+                <p className="text-slate-200 leading-relaxed">{ruling.finalDecision}</p>
+              </div>
+
+              <div className="space-y-1.5">
+                <h4 className="font-bold text-white uppercase tracking-wide text-[11px]">Deciding factors</h4>
+                <ul className="list-disc pl-5 space-y-1 text-slate-300">
+                  {ruling.decidingFactors.map((factor, i) => (
+                    <li key={i}>{factor}</li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className="space-y-1.5">
+                <h4 className="font-bold text-white uppercase tracking-wide text-[11px]">Influencing factors</h4>
+                <ul className="list-disc pl-5 space-y-1 text-slate-300">
+                  {ruling.influencingFactors.map((factor, i) => (
+                    <li key={i}>{factor}</li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className="space-y-2">
+                <h4 className="font-bold text-white uppercase tracking-wide text-[11px]">Audit points: used or ignored by the court</h4>
+                {auditPoints.length === 0 && (
+                  <p className="text-slate-400">Press "Audit and compare with ruling" to run the audit and check it against this ruling.</p>
+                )}
+                {auditPoints.map((point) => {
+                  const result = comparisonById.get(point.id);
+                  return (
+                    <div
+                      key={point.id}
+                      className={`p-3 rounded-xl border space-y-1 ${
+                        result?.status === 'used'
+                          ? 'border-emerald-700 bg-emerald-950/30'
+                          : result?.status === 'ignored'
+                            ? 'border-rose-800 bg-rose-950/30'
+                            : 'border-slate-800 bg-slate-950'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <span className="font-semibold text-slate-200">{point.side}: {point.title}</span>
+                        {result ? (
+                          <span
+                            className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded ${
+                              result.status === 'used' ? 'bg-emerald-900 text-emerald-200' : 'bg-rose-900 text-rose-200'
+                            }`}
+                          >
+                            {result.status === 'used' ? 'Used by court' : 'Ignored by court'}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] uppercase text-slate-500">Not compared</span>
+                        )}
+                      </div>
+                      {result && <p className="text-slate-400">{result.reason}</p>}
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
       {/* MODAL: EDIT METADATA TAGS (FEATURE REQUIREMENT) */}
       {editingFile && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm">
@@ -1577,6 +2036,42 @@ export const CorporateView: React.FC<CorporateViewProps> = ({ language }) => {
               >
                 ✕
               </button>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-300">Import emails (.eml)</span>
+                <label className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-semibold cursor-pointer">
+                  Choose .eml files
+                  <input type="file" accept=".eml,message/rfc822" multiple onChange={handleEmlFiles} className="hidden" />
+                </label>
+              </div>
+
+              {importedEmails.length === 0 ? (
+                <p className="text-[11px] text-slate-500">
+                  Export emails from Outlook or Gmail as .eml files, then choose them here. Click an email to fill in the form below.
+                </p>
+              ) : (
+                <div className="max-h-48 overflow-y-auto space-y-1.5 border border-slate-800 rounded-xl p-2 bg-slate-950">
+                  {importedEmails.map((email, index) => (
+                    <button
+                      key={`${email.fileName}-${index}`}
+                      type="button"
+                      onClick={() => selectImportedEmail(index)}
+                      className={`w-full text-left px-3 py-2 rounded-lg text-xs border transition cursor-pointer ${
+                        selectedEmailIndex === index
+                          ? 'border-amber-500 bg-amber-950/40 text-white'
+                          : 'border-slate-800 text-slate-300 hover:bg-slate-800'
+                      }`}
+                    >
+                      <div className="font-semibold truncate">{email.subject}</div>
+                      <div className="text-[10px] text-slate-400 truncate">
+                        {email.from}{email.date ? ` · ${email.date}` : ''}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             <form onSubmit={handleParseEmailToCase} className="space-y-3.5">

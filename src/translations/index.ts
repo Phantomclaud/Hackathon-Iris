@@ -108,6 +108,62 @@ export interface TranslationDictionary {
   cancel: string;
   confirm: string;
   search: string;
+
+  // Public view: speech, dialogue, and labels
+  pubHeroBadge: string;
+  pubSpeak: string;
+  pubStop: string;
+  pubSpeakTitle: string;
+  pubStopTitle: string;
+  pubSpeechLangTitle: string;
+  pubSpeechUnsupported: string;
+  pubSpeechChromeNote: string;
+  pubTranslating: string;
+  pubTranslatedNote: string;
+  pubTranslationFailed: string;
+  pubSpeechError: string;
+  pubQuickLandlord: string;
+  pubQuickEmployer: string;
+  pubAnalyzingStory: string;
+  pubRespondingNow: string;
+  pubSend: string;
+  pubSamplePresetLabel: string;
+  pubImpactOnCase: string;
+  pubMitigation: string;
+  pubLegalPurpose: string;
+  pubHowToObtain: string;
+  pubCatTenancy: string;
+  pubCatEmployment: string;
+  pubCatConsumer: string;
+  pubCatHarassment: string;
+  pubCatContract: string;
+  pubCatNegligence: string;
+  pubCatFamily: string;
+  pubPartyLandlord: string;
+  pubPartyEmployer: string;
+  pubPartyMerchant: string;
+  pubPartyIndividual: string;
+  pubIntro: string;
+  pubAssistantName: string;
+  pubAssistantTagline: string;
+  pubLiveBreakdown: string;
+  pubAwaitingStory: string;
+  pubCatSmallClaims: string;
+  pubAwaitingCase: string;
+  pubAnticipate: string;
+  pubGroundedIn: string;
+  srcCheckTitle: string;
+  srcNoCitations: string;
+  srcStatutesLink: string;
+  srcCasesInList: string;
+  srcUnverified: string;
+  srcCheckBeforeRelying: string;
+  pubStartersTitle: string;
+  pubStarterLandlord: string;
+  pubStarterEmployer: string;
+  pubStarterLaptop: string;
+  pubStarterLaptopMsg: string;
+  pubAwaitingStoryBody: string;
 }
 
 export const translations: Record<Language, TranslationDictionary> = {
@@ -212,7 +268,62 @@ export const translations: Record<Language, TranslationDictionary> = {
     close: 'Close',
     cancel: 'Cancel',
     confirm: 'Confirm',
-    search: 'Search Singapore Statutes & Case Law...'
+    search: 'Search Singapore Statutes & Case Law...',
+
+    pubHeroBadge: 'Singapore Public Citizen Legal Advisory',
+    pubSpeak: 'Speak',
+    pubStop: 'Stop',
+    pubSpeakTitle: 'Speak your account',
+    pubStopTitle: 'Stop recording',
+    pubSpeechLangTitle: 'Language you will speak in',
+    pubSpeechUnsupported: 'Speech input is not supported in this browser',
+    pubSpeechChromeNote: 'Speech input works in Chrome and Edge.',
+    pubTranslating: 'Translating to English...',
+    pubTranslatedNote: 'Translated to English. Original:',
+    pubTranslationFailed: 'Translation unavailable. Check the English text before sending.',
+    pubSpeechError: 'Speech error:',
+    pubQuickLandlord: 'My landlord refuses to return my $3,500 security deposit for minor scuffs on the floor after a 2-year lease.',
+    pubQuickEmployer: 'My company fired me on the spot with zero notice because I asked for $4,200 in unpaid overtime hours.',
+    pubAnalyzingStory: 'Iris is analyzing your story under Singapore statutes...',
+    pubRespondingNow: 'Iris Singapore Legal Counsel is responding...',
+    pubSend: 'Send',
+    pubSamplePresetLabel: 'Analyze Loaded Tenancy Preset',
+    pubImpactOnCase: 'Impact on Case:',
+    pubMitigation: 'Recommended Mitigation:',
+    pubLegalPurpose: 'Legal Purpose:',
+    pubHowToObtain: 'How to Obtain:',
+    pubCatTenancy: 'Residential Tenancy / Rental Deposit (CEA Template)',
+    pubCatEmployment: 'Employment / Wrongful Dismissal / Unpaid Salary (EA)',
+    pubCatConsumer: 'Consumer Dispute / Defective Goods (CPFTA Lemon Law)',
+    pubCatHarassment: 'Neighbour / Cyber Harassment / Stalking (POHA)',
+    pubCatContract: 'Breach of Commercial / Private Contract',
+    pubCatNegligence: 'Negligence / Property Damage / Slip & Fall',
+    pubCatFamily: 'Probate / Estate / Family Dispute',
+    pubPartyLandlord: 'Landlord',
+    pubPartyEmployer: 'Employer',
+    pubPartyMerchant: 'Merchant',
+    pubPartyIndividual: 'Individual',
+    pubAssistantName: 'Iris Citizen Assistant',
+    pubAssistantTagline: 'Just share what happened. Iris translates everyday stories into Singapore legal rights.',
+    pubLiveBreakdown: 'Live Legal Issue Breakdown',
+    pubAwaitingStory: 'Awaiting Your Story',
+    pubCatSmallClaims: 'Small Claims / Debt Under $20,000 (SCTA)',
+    pubAwaitingCase: 'Awaiting Case Submission',
+    pubAnticipate: 'Anticipate opposing arguments & court scrutiny',
+    pubGroundedIn: 'Grounded in Singapore Statutes & Court Precedents',
+    srcCheckTitle: 'Source check',
+    srcNoCitations: 'No statute or case citations were found in this result. Treat it as unsourced.',
+    srcStatutesLink: 'Statutes (SSO link)',
+    srcCasesInList: "Cases in the app's source list",
+    srcUnverified: "Unverified: not in the app's source list",
+    srcCheckBeforeRelying: 'Check these on SSO or in the reports before relying on them.',
+    pubStartersTitle: 'Quick Story Starters (click to load and send):',
+    pubStarterLandlord: '🏠 Landlord keeping $3,500 deposit for minor scuffs',
+    pubStarterEmployer: '💼 Fired without notice after requesting overtime pay',
+    pubStarterLaptop: '💻 Bought broken laptop; merchant refused refund',
+    pubStarterLaptopMsg: 'I bought a $2,850 gaming laptop from a shop and the motherboard failed in 3 weeks. Seller says "no refunds".',
+    pubAwaitingStoryBody: 'Type your situation in the chat or pick one of the quick starter stories. Iris will immediately recognize the applicable Singapore statutes and legal avenues!',
+    pubIntro: "Hello! I'm Iris, your Singapore Legal Intelligence Guide.\n\nYou do not need legal terms, court rules, or categories. Describe what happened below in your own words. You can paste a message, explain a dispute with your landlord, boss, merchant, or neighbour, or describe any money you're owed.\n\nI will analyze your story under Singapore statutes (SSO) and ask follow-up questions step by step.",
   },
 
   zh: {
@@ -316,7 +427,62 @@ export const translations: Record<Language, TranslationDictionary> = {
     close: '关闭',
     cancel: '取消',
     confirm: '确认',
-    search: '检索新加坡法令及判例法...'
+    search: '检索新加坡法令及判例法...',
+
+    pubHeroBadge: '新加坡公民法律咨询',
+    pubSpeak: '说话',
+    pubStop: '停止',
+    pubSpeakTitle: '口述您的经历',
+    pubStopTitle: '停止录音',
+    pubSpeechLangTitle: '您将使用的语言',
+    pubSpeechUnsupported: '此浏览器不支持语音输入',
+    pubSpeechChromeNote: '语音输入适用于 Chrome 和 Edge。',
+    pubTranslating: '正在翻译成英文...',
+    pubTranslatedNote: '已翻译成英文。原文：',
+    pubTranslationFailed: '翻译不可用，请在发送前检查英文文本。',
+    pubSpeechError: '语音错误：',
+    pubQuickLandlord: '我租的房子两年租约到期后，房东以地板有轻微划痕为由，拒绝退还我的 3,500 新元押金。',
+    pubQuickEmployer: '我因为要求支付 4,200 新元的未付加班费，被公司当场解雇，没有任何通知。',
+    pubAnalyzingStory: 'Iris 正在根据新加坡法令分析您的经历...',
+    pubRespondingNow: 'Iris 新加坡法律顾问正在回复...',
+    pubSend: '发送',
+    pubSamplePresetLabel: '分析已载入的租赁示例',
+    pubImpactOnCase: '对案件的影响：',
+    pubMitigation: '建议的减轻措施：',
+    pubLegalPurpose: '法律目的：',
+    pubHowToObtain: '获取方式：',
+    pubCatTenancy: '住宅租赁 / 租房押金（CEA 范本）',
+    pubCatEmployment: '雇佣 / 不当解雇 / 欠薪（EA）',
+    pubCatConsumer: '消费纠纷 / 瑕疵商品（CPFTA 柠檬法）',
+    pubCatHarassment: '邻里 / 网络骚扰 / 跟踪（POHA）',
+    pubCatContract: '违反商业或私人合同',
+    pubCatNegligence: '疏忽 / 财产损失 / 滑倒受伤',
+    pubCatFamily: '遗嘱认证 / 遗产 / 家庭纠纷',
+    pubPartyLandlord: '房东',
+    pubPartyEmployer: '雇主',
+    pubPartyMerchant: '商家',
+    pubPartyIndividual: '个人',
+    pubAssistantName: 'Iris 公民助手',
+    pubAssistantTagline: '只需说说发生了什么。Iris 将日常经历转化为新加坡法律权利。',
+    pubLiveBreakdown: '实时法律问题分析',
+    pubAwaitingStory: '等待您的经历',
+    pubCatSmallClaims: '小额索赔 / 20,000 新元以下债务（SCTA）',
+    pubAwaitingCase: '等待提交案件',
+    pubAnticipate: '预判对方论点与法院审查',
+    pubGroundedIn: '以新加坡法令和法院判例为依据',
+    srcCheckTitle: '来源检查',
+    srcNoCitations: '此结果中未找到法令或判例引用。请视为无来源依据。',
+    srcStatutesLink: '法令（SSO 链接）',
+    srcCasesInList: '应用来源列表中的案例',
+    srcUnverified: '未经核实：不在应用来源列表中',
+    srcCheckBeforeRelying: '在依赖这些内容之前，请在 SSO 或报告中核对。',
+    pubStartersTitle: '快速故事示例（点击即可载入并发送）：',
+    pubStarterLandlord: '🏠 房东扣留 3,500 新元押金，理由是轻微划痕',
+    pubStarterEmployer: '💼 要求支付加班费后被无通知解雇',
+    pubStarterLaptop: '💻 买到故障笔记本，商家拒绝退款',
+    pubStarterLaptopMsg: '我在一家店买了一台 2,850 新元的游戏笔记本，3 周内主板就坏了。卖家说"不退款"。',
+    pubAwaitingStoryBody: '请在聊天中输入您的情况，或选择一个快速示例故事。Iris 会立即识别适用的新加坡法令和法律途径！',
+    pubIntro: '您好！我是 Iris，您的新加坡法律智能向导。\n\n您无需了解法律术语、法院规则或案件类别。请用您自己的话直接告诉我发生了什么事。您可以粘贴一条信息，说明您与房东、老板、商家或邻居的纠纷，或描述您被欠的任何款项。\n\n我会根据新加坡法令（SSO）分析您的情况，并逐步提出追问。',
   },
 
   ms: {
@@ -420,7 +586,62 @@ export const translations: Record<Language, TranslationDictionary> = {
     close: 'Tutup',
     cancel: 'Batal',
     confirm: 'Sahkan',
-    search: 'Cari Statut & Kes Mahkamah Singapura...'
+    search: 'Cari Statut & Kes Mahkamah Singapura...',
+
+    pubHeroBadge: 'Nasihat Undang-undang Awam Singapura',
+    pubSpeak: 'Bercakap',
+    pubStop: 'Henti',
+    pubSpeakTitle: 'Bercakap tentang kes anda',
+    pubStopTitle: 'Hentikan rakaman',
+    pubSpeechLangTitle: 'Bahasa yang anda akan gunakan',
+    pubSpeechUnsupported: 'Input suara tidak disokong dalam pelayar ini',
+    pubSpeechChromeNote: 'Input suara berfungsi dalam Chrome dan Edge.',
+    pubTranslating: 'Menterjemah ke Bahasa Inggeris...',
+    pubTranslatedNote: 'Diterjemah ke Bahasa Inggeris. Asal:',
+    pubTranslationFailed: 'Terjemahan tidak tersedia. Semak teks Bahasa Inggeris sebelum menghantar.',
+    pubSpeechError: 'Ralat suara:',
+    pubQuickLandlord: 'Tuan rumah saya enggan memulangkan deposit keselamatan $3,500 saya kerana calar kecil di lantai selepas sewa 2 tahun.',
+    pubQuickEmployer: 'Syarikat saya memecat saya serta-merta tanpa notis kerana saya minta bayaran kerja lebih masa sebanyak $4,200 yang belum dibayar.',
+    pubAnalyzingStory: 'Iris sedang menganalisis cerita anda di bawah statut Singapura...',
+    pubRespondingNow: 'Peguam Iris Singapura sedang membalas...',
+    pubSend: 'Hantar',
+    pubSamplePresetLabel: 'Analisis Pratetap Tenansi Yang Dimuatkan',
+    pubImpactOnCase: 'Kesan ke atas Kes:',
+    pubMitigation: 'Pengurangan Yang Disyorkan:',
+    pubLegalPurpose: 'Tujuan Undang-undang:',
+    pubHowToObtain: 'Cara Mendapatkan:',
+    pubCatTenancy: 'Penyewaan Kediaman / Deposit Sewa (Templat CEA)',
+    pubCatEmployment: 'Pekerjaan / Pemecatan Tidak Adil / Gaji Tidak Dibayar (EA)',
+    pubCatConsumer: 'Pertikaian Pengguna / Barangan Rosak (CPFTA Lemon Law)',
+    pubCatHarassment: 'Gangguan Jiran / Siber / Mengekori (POHA)',
+    pubCatContract: 'Pelanggaran Kontrak Komersial / Persendirian',
+    pubCatNegligence: 'Kecuaian / Kerosakan Harta / Tergelincir',
+    pubCatFamily: 'Probet / Harta Pusaka / Pertikaian Keluarga',
+    pubPartyLandlord: 'Tuan Rumah',
+    pubPartyEmployer: 'Majikan',
+    pubPartyMerchant: 'Peniaga',
+    pubPartyIndividual: 'Individu',
+    pubAssistantName: 'Pembantu Warganegara Iris',
+    pubAssistantTagline: 'Kongsi sahaja apa yang berlaku. Iris menterjemahkan cerita harian kepada hak undang-undang Singapura.',
+    pubLiveBreakdown: 'Pecahan Isu Undang-undang Langsung',
+    pubAwaitingStory: 'Menunggu cerita anda',
+    pubCatSmallClaims: 'Tuntutan Kecil / Hutang Bawah $20,000 (SCTA)',
+    pubAwaitingCase: 'Menunggu penghantaran kes',
+    pubAnticipate: 'Jangkakan hujah lawan & penelitian mahkamah',
+    pubGroundedIn: 'Berasaskan Statut Singapura & Preseden Mahkamah',
+    srcCheckTitle: 'Semakan sumber',
+    srcNoCitations: 'Tiada rujukan statut atau kes ditemui dalam keputusan ini. Anggap ia tanpa sumber.',
+    srcStatutesLink: 'Statut (pautan SSO)',
+    srcCasesInList: 'Kes dalam senarai sumber aplikasi',
+    srcUnverified: 'Belum disahkan: tidak dalam senarai sumber aplikasi',
+    srcCheckBeforeRelying: 'Semak perkara ini di SSO atau dalam laporan sebelum bergantung kepadanya.',
+    pubStartersTitle: 'Cerita Pantas (klik untuk memuatkan dan menghantar):',
+    pubStarterLandlord: '🏠 Tuan rumah menahan deposit $3,500 atas calar kecil',
+    pubStarterEmployer: '💼 Dipecat tanpa notis selepas meminta bayaran kerja lebih masa',
+    pubStarterLaptop: '💻 Beli komputer riba rosak; peniaga enggan memulangkan wang',
+    pubStarterLaptopMsg: 'Saya membeli komputer riba permainan berharga $2,850 dari sebuah kedai dan papan induknya rosak dalam masa 3 minggu. Penjual berkata "tiada bayaran balik".',
+    pubAwaitingStoryBody: 'Taip situasi anda dalam sembang atau pilih salah satu cerita pantas. Iris akan segera mengenal pasti statut Singapura dan saluran undang-undang yang berkaitan!',
+    pubIntro: 'Helo! Saya Iris, Panduan Perisikan Undang-undang Singapura anda.\n\nAnda tidak perlu tahu istilah undang-undang, peraturan mahkamah, atau kategori. Terangkan apa yang berlaku di bawah dengan kata-kata anda sendiri. Anda boleh tampal mesej, terangkan pertikaian dengan tuan rumah, bos, peniaga, atau jiran anda, atau huraikan apa-apa wang yang perlu dibayar kepada anda.\n\nSaya akan menganalisis situasi anda di bawah statut Singapura (SSO) dan bertanya soalan lanjut langkah demi langkah.',
   },
 
   ta: {
@@ -524,6 +745,61 @@ export const translations: Record<Language, TranslationDictionary> = {
     close: 'மூடு',
     cancel: 'ரத்து செய்',
     confirm: 'உறுதி செய்',
-    search: 'சிங்கப்பூர் சட்டங்கள் மற்றும் வழக்குகளைத் தேடுங்கள்...'
+    search: 'சிங்கப்பூர் சட்டங்கள் மற்றும் வழக்குகளைத் தேடுங்கள்...',
+
+    pubHeroBadge: 'சிங்கப்பூர் பொது குடிமக்கள் சட்ட ஆலோசனை',
+    pubSpeak: 'பேசு',
+    pubStop: 'நிறுத்து',
+    pubSpeakTitle: 'உங்கள் கதையைப் பேசுங்கள்',
+    pubStopTitle: 'பதிவை நிறுத்து',
+    pubSpeechLangTitle: 'நீங்கள் பேசப்போகும் மொழி',
+    pubSpeechUnsupported: 'இந்த உலாவியில் குரல் உள்ளீடு ஆதரிக்கப்படவில்லை',
+    pubSpeechChromeNote: 'குரல் உள்ளீடு Chrome மற்றும் Edge இல் வேலை செய்யும்.',
+    pubTranslating: 'ஆங்கிலத்திற்கு மொழிபெயர்க்கிறது...',
+    pubTranslatedNote: 'ஆங்கிலத்திற்கு மொழிபெயர்க்கப்பட்டது. மூலம்:',
+    pubTranslationFailed: 'மொழிபெயர்ப்பு கிடைக்கவில்லை. அனுப்புவதற்கு முன் ஆங்கில உரையைச் சரிபார்க்கவும்.',
+    pubSpeechError: 'குரல் பிழை:',
+    pubQuickLandlord: '2 ஆண்டு குத்தகைக்குப் பிறகு, தரையில் சிறு கீறல்களுக்காக என் $3,500 வைப்புத்தொகையைத் திருப்பித் தர வீட்டு உரிமையாளர் மறுக்கிறார்.',
+    pubQuickEmployer: 'செலுத்தப்படாத $4,200 கூடுதல் நேர ஊதியம் கேட்டதற்காக, அறிவிப்பு எதுவுமின்றி நிறுவனம் உடனடியாக என்னை நீக்கியது.',
+    pubAnalyzingStory: 'Iris சிங்கப்பூர் சட்டங்களின்படி உங்கள் கதையை பகுப்பாய்வு செய்கிறது...',
+    pubRespondingNow: 'Iris சிங்கப்பூர் சட்ட ஆலோசகர் பதிலளிக்கிறார்...',
+    pubSend: 'அனுப்பு',
+    pubSamplePresetLabel: 'ஏற்றப்பட்ட வாடகை முன்னமைவை பகுப்பாய்வு செய்',
+    pubImpactOnCase: 'வழக்கின் மீதான தாக்கம்:',
+    pubMitigation: 'பரிந்துரைக்கப்பட்ட தணிப்பு:',
+    pubLegalPurpose: 'சட்ட நோக்கம்:',
+    pubHowToObtain: 'பெறும் வழி:',
+    pubCatTenancy: 'குடியிருப்பு குத்தகை / வாடகை வைப்புத்தொகை (CEA வார்ப்புரு)',
+    pubCatEmployment: 'வேலைவாய்ப்பு / நியாயமற்ற பணிநீக்கம் / ஊதியம் செலுத்தப்படாதது (EA)',
+    pubCatConsumer: 'நுகர்வோர் தகராறு / குறைபாடுள்ள பொருட்கள் (CPFTA எலுமிச்சை சட்டம்)',
+    pubCatHarassment: 'அண்டை வீட்டார் / இணைய துன்புறுத்தல் / பின்தொடர்தல் (POHA)',
+    pubCatContract: 'வணிக / தனியார் ஒப்பந்த மீறல்',
+    pubCatNegligence: 'அலட்சியம் / சொத்து சேதம் / வழுக்கி விழுதல்',
+    pubCatFamily: 'உயில் / சொத்து / குடும்ப தகராறு',
+    pubPartyLandlord: 'வீட்டு உரிமையாளர்',
+    pubPartyEmployer: 'முதலாளி',
+    pubPartyMerchant: 'வணிகர்',
+    pubPartyIndividual: 'தனிநபர்',
+    pubAssistantName: 'Iris குடிமக்கள் உதவியாளர்',
+    pubAssistantTagline: 'என்ன நடந்தது என்று மட்டும் சொல்லுங்கள். Iris அன்றாட கதைகளை சிங்கப்பூர் சட்ட உரிமைகளாக மாற்றுகிறது.',
+    pubLiveBreakdown: 'நேரடி சட்டப் பிரச்சினை பகுப்பாய்வு',
+    pubAwaitingStory: 'உங்கள் கதைக்காக காத்திருக்கிறது',
+    pubCatSmallClaims: 'சிறு உரிமைகோரல்கள் / $20,000க்கு கீழ் கடன் (SCTA)',
+    pubAwaitingCase: 'வழக்கு சமர்ப்பிப்புக்காக காத்திருக்கிறது',
+    pubAnticipate: 'எதிர்த் தரப்பு வாதங்கள் மற்றும் நீதிமன்ற ஆய்வை முன்கூட்டியே கணிக்கவும்',
+    pubGroundedIn: 'சிங்கப்பூர் சட்டங்கள் மற்றும் நீதிமன்ற முன்னுதாரணங்களின் அடிப்படையில்',
+    srcCheckTitle: 'ஆதாரச் சரிபார்ப்பு',
+    srcNoCitations: 'இந்த முடிவில் சட்ட அல்லது வழக்கு மேற்கோள்கள் எதுவும் கிடைக்கவில்லை. ஆதாரமற்றதாகக் கருதுங்கள்.',
+    srcStatutesLink: 'சட்டங்கள் (SSO இணைப்பு)',
+    srcCasesInList: 'பயன்பாட்டின் ஆதாரப் பட்டியலில் உள்ள வழக்குகள்',
+    srcUnverified: 'சரிபார்க்கப்படவில்லை: பயன்பாட்டின் ஆதாரப் பட்டியலில் இல்லை',
+    srcCheckBeforeRelying: 'இவற்றை நம்புவதற்கு முன் SSO அல்லது அறிக்கைகளில் சரிபார்க்கவும்.',
+    pubStartersTitle: 'விரைவுக் கதைத் தொடக்கங்கள் (ஏற்ற மற்றும் அனுப்ப கிளிக் செய்யவும்):',
+    pubStarterLandlord: '🏠 சிறு கீறல்களுக்காக வீட்டு உரிமையாளர் $3,500 வைப்புத்தொகையை வைத்துள்ளார்',
+    pubStarterEmployer: '💼 கூடுதல் நேர ஊதியம் கேட்டதற்காக அறிவிப்பின்றி நீக்கப்பட்டேன்',
+    pubStarterLaptop: '💻 உடைந்த மடிக்கணினி வாங்கினேன்; வணிகர் பணத்தைத் திருப்பித் தர மறுத்தார்',
+    pubStarterLaptopMsg: 'ஒரு கடையில் $2,850 மதிப்புள்ள கேமிங் மடிக்கணினி வாங்கினேன். 3 வாரங்களில் மதர்போர்டு பழுதடைந்தது. விற்பனையாளர் "பணம் திரும்பப் பெறப்படாது" என்கிறார்.',
+    pubAwaitingStoryBody: 'அரட்டையில் உங்கள் நிலைமையை தட்டச்சு செய்யுங்கள் அல்லது விரைவுக் கதைகளில் ஒன்றைத் தேர்ந்தெடுங்கள். பொருந்தக்கூடிய சிங்கப்பூர் சட்டங்களையும் சட்ட வழிகளையும் Iris உடனடியாக அடையாளம் காணும்!',
+    pubIntro: 'வணக்கம்! நான் Iris, உங்கள் சிங்கப்பூர் சட்ட நுண்ணறிவு வழிகாட்டி.\n\nசட்டச் சொற்கள், நீதிமன்ற விதிகள் அல்லது வகைகள் தெரிந்திருக்க வேண்டியதில்லை. கீழே உங்கள் சொந்த வார்த்தைகளில் என்ன நடந்தது என்று சொல்லுங்கள். ஒரு செய்தியை ஒட்டலாம், வீட்டு உரிமையாளர், முதலாளி, வணிகர் அல்லது அண்டை வீட்டாருடன் உள்ள தகராறை விளக்கலாம், அல்லது உங்களுக்கு வர வேண்டிய பணத்தை விவரிக்கலாம்.\n\nசிங்கப்பூர் சட்டங்களின்படி (SSO) உங்கள் நிலைமையை பகுப்பாய்வு செய்து, படிப்படியாகக் கேள்விகள் கேட்பேன்.',
   }
 };

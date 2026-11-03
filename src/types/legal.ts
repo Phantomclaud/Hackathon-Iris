@@ -123,7 +123,8 @@ export type SourceTypeTag =
   | 'witness_statement'
   | 'financial_invoice'
   | 'regulatory_filing'
-  | 'expert_report';
+  | 'expert_report'
+  | 'court_judgment';
 
 export interface FileMetadataTags {
   relevance: RelevanceTag;
@@ -151,6 +152,8 @@ export interface UploadedFileItem {
   contentSummary: string;
 }
 
+export type CaseStatus = 'active' | 'completed' | 'archived';
+
 export interface CorporateCase {
   id: string;
   referenceNumber: string;
@@ -164,6 +167,17 @@ export interface CorporateCase {
   dateCreated: string;
   folders: string[];
   files: UploadedFileItem[];
+  status?: CaseStatus;
+  completedAt?: string;
+  archivedAt?: string;
+  lastAudit?: DualSideFlawAnalysis;
+  rulingComparison?: RulingComparison[];
+}
+
+export interface RulingComparison {
+  id: string;
+  status: 'used' | 'ignored';
+  reason: string;
 }
 
 export interface DualSideFlawAnalysis {

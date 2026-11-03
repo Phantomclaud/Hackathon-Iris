@@ -1,4 +1,6 @@
 import { UploadedFileItem } from '../types/legal';
+import { CASE_STUDIES } from './caseStudies';
+import { isTestCitation } from './evaluationSplit';
 
 export interface SingaporeStatute {
   id: string;
@@ -19,7 +21,8 @@ export interface SingaporePrecedent {
   id: string;
   caseName: string;
   citation: string;
-  court: 'SGCA' | 'SGHC' | 'SGHC(A)' | 'SICC';
+  aliases?: string[];
+  court: 'SGCA' | 'SGHC' | 'SGHC(A)' | 'SICC' | 'SGDC' | 'SGMC' | 'SGFC' | 'Other';
   year: number;
   subjectArea: string;
   ratioDecidendi: string;
@@ -263,7 +266,7 @@ export const SINGAPORE_STATUTES: SingaporeStatute[] = [
   }
 ];
 
-export const SINGAPORE_PRECEDENTS: SingaporePrecedent[] = [
+const CORE_PRECEDENTS: SingaporePrecedent[] = [
   {
     id: 'prec-spandeck',
     caseName: 'Spandeck Engineering (S) Pte Ltd v Defence Science & Technology Agency',
@@ -346,6 +349,22 @@ export const SINGAPORE_PRECEDENTS: SingaporePrecedent[] = [
   }
 ];
 
+// Case library judgments with a citation. Entries without one are kept as Corporate case folders only.
+export const SINGAPORE_PRECEDENTS: SingaporePrecedent[] = [
+  ...CORE_PRECEDENTS,
+  ...CASE_STUDIES.filter((cs, i) => !cs.unreadable && cs.citation && !isTestCitation(cs.citation) && CASE_STUDIES.findIndex((o) => o.citation === cs.citation) === i).map((cs) => ({
+    id: `prec-${cs.id}`,
+    caseName: cs.caseName,
+    citation: cs.citation,
+    aliases: cs.aliases,
+    court: cs.court as SingaporePrecedent['court'],
+    year: cs.year,
+    subjectArea: cs.subjectArea,
+    ratioDecidendi: cs.ratioDecidendi,
+    significance: cs.significance
+  }))
+];
+
 export const PUBLIC_SAMPLE_CASES = [
   {
     id: 'sample-tenancy',
@@ -393,21 +412,23 @@ export const PUBLIC_SAMPLE_CASES = [
   }
 ];
 
+// Based on the reported judgment in Center for Competency-Based Learning and Development Pte Ltd v SkillsFuture Singapore Agency [2024] 5 SLR 481 ([2024] SGHC 121).
+// File summaries reconstruct the documents that the judgment describes. They are not the original documents.
 export const CORPORATE_SAMPLE_CASE = {
-  referenceNumber: 'SG/CORP/2026-8812',
-  caseTitle: 'Vanguard Marine Chartering Pte Ltd v. Marina Bay Horizon Holdings Ltd',
-  clientName: 'Vanguard Marine Chartering Pte Ltd (Claimant)',
-  adverseParty: 'Marina Bay Horizon Holdings Ltd (Respondent)',
-  disputeValue: 'SGD 1,450,000 + Accrued Demurrage',
-  courtJurisdiction: 'Singapore International Commercial Court (SICC) / General Division of High Court',
-  practiceArea: 'Maritime & Commercial Charterparty Breach',
+  referenceNumber: '[2024] SGHC 121',
+  caseTitle: 'Center for Competency-Based Learning and Development Pte Ltd v SkillsFuture Singapore Agency [2024] 5 SLR 481',
+  clientName: 'Center for Competency-Based Learning and Development Pte Ltd (Plaintiff, training provider)',
+  adverseParty: 'SkillsFuture Singapore Agency (Defendant, statutory body)',
+  disputeValue: 'Claim sum of SGD 1,439,157.72 (SGD 14,244.30 allowed); counterclaim of SGD 793,083.79 allowed',
+  courtJurisdiction: 'General Division of the High Court (Suit No 718 of 2021)',
+  practiceArea: 'Contract: Termination, Clawback Clauses and Estoppel',
   dateCreated: '2026-10-25',
-  folders: ['1_Contracts_and_Riders', '2_Email_Correspondence_Chains', '3_Port_Logs_and_NOR', '4_Pleadings_and_Demands'],
+  folders: ['1_Funding_Contract', '2_Termination_Documents', '3_Audit_and_Trainee_Evidence'],
   files: <UploadedFileItem[]>[
     {
       id: 'doc-001',
-      folderName: '1_Contracts_and_Riders',
-      fileName: 'BIMCO_Gencon_Charterparty_Dated_14_Jan_2026.pdf',
+      folderName: '1_Funding_Contract',
+      fileName: 'SkillsConnect_General_Terms_and_Conditions.pdf',
       fileType: 'contract' as const,
       sizeBytes: 1845000,
       uploadedAt: '2026-10-25 09:15',
@@ -415,81 +436,75 @@ export const CORPORATE_SAMPLE_CASE = {
         relevance: 'high',
         confidentiality: 'commercial_confidential',
         sourceType: 'contract_rider',
-        customNotes: 'Governing agreement, cl 18 demurrage, cl 24 Singapore law.'
+        customNotes: 'Cl 12.1(a) and 12.1(d) give termination grounds. Cl 13.4 is the clawback clause. Cl 15.1 is the general exemption. Check each against the judgment at [169] to [212].'
       },
-      contentSummary: 'Charterparty agreement cl 18 (Demurrage USD 18,000/day), cl 24 (Singapore governing law and SICC exclusive jurisdiction), cl 9 (Notice of Readiness delivery requirements).'
+      contentSummary: 'Standard-form SkillsConnect contract, entered into around May 2007. Cl 7.3 and 14.1(c): claim information must be true, accurate and complete to the best of knowledge. Cl 12.1(d): termination where SSG is of the opinion that the provider is guilty of gross moral turpitude. Cl 13.4: clawback of all funding received on termination. Cl 15.1: general exemption and release.'
     },
     {
       id: 'doc-002',
-      folderName: '2_Email_Correspondence_Chains',
-      fileName: 'Email_Thread_Bunker_Notice_April2026.eml',
-      fileType: 'email' as const,
-      sizeBytes: 342000,
+      folderName: '2_Termination_Documents',
+      fileName: 'Notice_of_Intent_16_Oct_2020.pdf',
+      fileType: 'pleading' as const,
+      sizeBytes: 402000,
       uploadedAt: '2026-10-25 09:20',
+      tags: {
+        relevance: 'high',
+        confidentiality: 'open_evidence',
+        sourceType: 'regulatory_filing',
+        customNotes: 'Notice cited cl 12.1(c), not 12.1(a) or (d). The court still allowed termination under 12.1(a) (at [170] and [171]).'
+      },
+      contentSummary: 'Notice of intent to terminate issued by SSG on 16 October 2020, alleging breaches of cl 7.3, cl 7.5 and cll 4.6(a) to (b). Sought a refund of SGD 793,083.79 and gave 14 days to show cause. Said previously approved claims would be rejected unless resubmitted by 15 November 2020.'
+    },
+    {
+      id: 'doc-003',
+      folderName: '2_Termination_Documents',
+      fileName: 'Ad_hoc_Claim_Approval_Emails_Oct_2020_Mar_2021.eml',
+      fileType: 'email' as const,
+      sizeBytes: 680000,
+      uploadedAt: '2026-10-25 09:22',
       metadata: {
-        emailFrom: 'chartering@marinabayhorizon.com',
-        emailTo: 'ops@vanguardmarine.sg',
-        emailDate: '2026-04-12 14:32 SGT',
-        emailSubject: 'RE: Vessel Congestion at Jurong Port Berth 4 & NOR Acceptance'
+        emailFrom: 'SkillsFuture Singapore Agency (automated)',
+        emailTo: 'Center for Competency-Based Learning and Development Pte Ltd',
+        emailDate: '2020-10-16 to 2021-03-25',
+        emailSubject: 'Ad hoc claim approved, subject to disbursement conditions'
       },
       tags: {
         relevance: 'smoking_gun',
         confidentiality: 'open_evidence',
         sourceType: 'email_thread',
-        customNotes: 'Explicit admission by Respondent admitting vessel arrived within laycan.'
+        customNotes: 'Key to the estoppel finding. The court held SSG was estopped from using the clawback for claims made during the intervening period (at [231]).'
       },
-      contentSummary: 'Respondent operations director admitted: "We acknowledge vessel arrived within laycan on 10 April, but berth was occupied by third party. We are working to clear". Key admission of tender.'
-    },
-    {
-      id: 'doc-003',
-      folderName: '2_Email_Correspondence_Chains',
-      fileName: 'Email_Thread_Mitigation_Discussion_May2026.eml',
-      fileType: 'email' as const,
-      sizeBytes: 289000,
-      uploadedAt: '2026-10-25 09:22',
-      metadata: {
-        emailFrom: 'ops@vanguardmarine.sg',
-        emailTo: 'chartering@marinabayhorizon.com',
-        emailDate: '2026-05-04 11:05 SGT',
-        emailSubject: 'Alternative discharge at Tuas Berth 2 proposal'
-      },
-      tags: {
-        relevance: 'medium',
-        confidentiality: 'without_prejudice',
-        sourceType: 'email_thread',
-        customNotes: 'Without prejudice settlement negotiations regarding Tuas berth alternative.'
-      },
-      contentSummary: 'Claimant proposed alternative discharge at Tuas to mitigate demurrage, but delayed formal rejection response by 11 days. Potential failure to mitigate argument for Respondent.'
+      contentSummary: 'About 200 emails during the intervening period, each stating "This claim has been approved and will be disbursed if you meet disbursement conditions". SSG did not suspend the provider account, and the provider kept running courses until 25 March 2021.'
     },
     {
       id: 'doc-004',
-      folderName: '3_Port_Logs_and_NOR',
-      fileName: 'Jurong_Port_Master_Log_April_2026.pdf',
-      fileType: 'evidence' as const,
-      sizeBytes: 4210000,
-      uploadedAt: '2026-10-25 09:30',
+      folderName: '2_Termination_Documents',
+      fileName: 'Termination_Letter_25_March_2021.pdf',
+      fileType: 'pleading' as const,
+      sizeBytes: 215000,
+      uploadedAt: '2026-10-25 09:25',
       tags: {
         relevance: 'high',
         confidentiality: 'open_evidence',
         sourceType: 'regulatory_filing',
-        customNotes: 'Official MPA log entry admissible as public register record under Evidence Act s 35.'
+        customNotes: 'Terminated under cl 12.1(d) on the opinion of gross moral turpitude. The court held that the opinion is the qualifying event, so the court does not test its facts (at [179]).'
       },
-      contentSummary: 'Official MPA and Port Master log certifying timestamp of Notice of Readiness (NOR) tendered at 08:00 hrs on 11 April 2026. Free pratique granted.'
+      contentSummary: 'Immediate termination under cl 12.1(d), stating SSG had "formed the opinion that CBLD is guilty of gross moral turpitude". Stated under cl 13.4 that no further funding would be paid, even for claims already approved.'
     },
     {
       id: 'doc-005',
-      folderName: '4_Pleadings_and_Demands',
-      fileName: 'Formal_Notice_of_Demand_Dated_15_June_2026.pdf',
-      fileType: 'pleading' as const,
-      sizeBytes: 654000,
-      uploadedAt: '2026-10-25 09:35',
+      folderName: '3_Audit_and_Trainee_Evidence',
+      fileName: 'Trainee_Statements_and_CBLD_Declarations.pdf',
+      fileType: 'evidence' as const,
+      sizeBytes: 2950000,
+      uploadedAt: '2026-10-25 09:30',
       tags: {
         relevance: 'high',
         confidentiality: 'litigation_privilege',
         sourceType: 'witness_statement',
-        customNotes: 'Formal letter of demand under Rules of Court 2021 pre-action protocol.'
+        customNotes: 'Of 14 trainee statements, the court accepted the evidence for Trainees 1, 3 and 9 and rejected the CBLD declarations (at [76]). No finding of dishonesty (at [163]).'
       },
-      contentSummary: 'Claimant legal counsel letter demanding $1,450,000 demurrage under cl 18 within 14 days, with reservation of rights for interest under Civil Law Act s 30A.'
+      contentSummary: 'Interview statements from 14 trainees and the provider\'s mass declarations. The court found Trainee 9 attended no sessions and did not sign her attendance sheets. It found Trainees 1 and 3 attended under 75% of the stated course duration. It did not find that the provider acted dishonestly.'
     }
   ]
 };

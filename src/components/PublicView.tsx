@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
+import { Mic, MicOff } from 'lucide-react';
 import {
   Scale,
   Send,
@@ -30,6 +31,8 @@ import {
 } from '../types/legal';
 import { PUBLIC_SAMPLE_CASES } from '../data/singaporeLawData';
 import { translations } from '../translations';
+import { SourceFlags } from './SourceFlags';
+import { FormattedText } from './FormattedText';
 import {
   classifyPublicInfodump,
   PublicInfodumpClassification,
@@ -60,7 +63,7 @@ export const PublicView: React.FC<PublicViewProps> = ({
     {
       id: 'iris-intro',
       sender: 'ai',
-      text: `Hello! I'm Iris, your Singapore Legal Intelligence Guide.\n\nDon't worry if you don't know any legal terms, court rules, or categories. Just tell me what happened in your own words below. You can paste a message, explain a dispute with your landlord, boss, merchant, or neighbour, or describe any money you're owed.\n\nI will analyze your story under Singapore statutes (SSO) and guide you step-by-step through our conversation!`,
+      text: `Hello! I'm Iris, your Singapore Legal Intelligence Guide.\n\nYou do not need legal terms, court rules, or categories. Describe what happened below in your own words. You can paste a message, explain a dispute with your landlord, boss, merchant, or neighbour, or describe any money you're owed.\n\nI will analyze your story under Singapore statutes (SSO) and ask follow-up questions step by step.`,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       statutoryCitations: ['Singapore Statutes Online (SSO)', 'Community Justice & Tribunals System (CJTS)']
     }
@@ -185,6 +188,78 @@ export const PublicView: React.FC<PublicViewProps> = ({
       }
     };
     setInfodumpMessages((prev) => [...prev, aiMsg]);
+  };
+
+  // Speech-to-text for the infodump box. Non-English speech is translated to English before submission.
+  const [isListening, setIsListening] = useState(false);
+  const [speechNote, setSpeechNote] = useState('');
+  const [showSpeechMenu, setShowSpeechMenu] = useState(false);
+  const recognitionRef = useRef<any>(null);
+  const speechSupported = typeof window !== 'undefined' && !!((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
+  const SPEECH_LANG: Record<string, string> = { en: 'en-SG', zh: 'zh-CN', ms: 'ms-MY', ta: 'ta-IN' };
+  const SPEECH_OPTIONS = [
+    { code: 'en', label: 'English' },
+    { code: 'zh', label: '中文' },
+    { code: 'ms', label: 'Melayu' },
+    { code: 'ta', label: 'தமிழ்' }
+  ];
+
+  const appendInfodump = (text: string) => {
+    setInfodumpText((prev) => (prev ? `${prev} ${text}` : text));
+  };
+
+  const startListening = (lang: string) => {
+    if (!speechSupported) return;
+
+    const Recognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const rec = new Recognition();
+    rec.lang = SPEECH_LANG[lang] || 'en-SG';
+    rec.continuous = true;
+    rec.interimResults = false;
+
+    rec.onresult = async (event: any) => {
+      let said = '';
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        if (event.results[i].isFinal) said += event.results[i][0].transcript;
+      }
+      said = said.trim();
+      if (!said) return;
+
+      if (lang === 'en') {
+        appendInfodump(said);
+        return;
+      }
+
+      setSpeechNote(t.pubTranslating);
+      try {
+        const response = await fetch('/api/public/translate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: said, sourceLanguage: lang })
+        });
+        const data = await response.json();
+        appendInfodump(data.english || said);
+        setSpeechNote(
+          data.translated
+            ? `${t.pubTranslatedNote} "${said}"`
+            : t.pubTranslationFailed
+        );
+      } catch {
+        appendInfodump(said);
+        setSpeechNote(t.pubTranslationFailed);
+      }
+    };
+
+    rec.onerror = (event: any) => {
+      setSpeechNote(`${t.pubSpeechError} ${event.error}`);
+      setIsListening(false);
+    };
+    rec.onend = () => setIsListening(false);
+
+    recognitionRef.current = rec;
+    setSpeechNote('');
+    rec.start();
+    setIsListening(true);
   };
 
   // Conversational Infodump Handler
@@ -372,7 +447,7 @@ export const PublicView: React.FC<PublicViewProps> = ({
           <div className="space-y-2 max-w-2xl">
             <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-red-900/60 border border-red-700/60 text-red-200 text-xs font-semibold">
               <Scale className="w-3.5 h-3.5 text-amber-300" />
-              <span>Singapore Public Citizen Legal Advisory</span>
+              <span>{t.pubHeroBadge}</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight font-serif">
               {t.publicHeroTitle}
@@ -427,10 +502,10 @@ export const PublicView: React.FC<PublicViewProps> = ({
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-white font-serif">
-                    Iris Citizen Assistant
+                    {t.pubAssistantName}
                   </h3>
                   <p className="text-[11px] text-slate-400">
-                    Just share what happened. Iris translates everyday stories into Singapore legal rights.
+                    {t.pubAssistantTagline}
                   </p>
                 </div>
               </div>
@@ -451,36 +526,38 @@ export const PublicView: React.FC<PublicViewProps> = ({
             {/* Quick Starter Story Pills */}
             <div className="space-y-1.5 bg-slate-950/60 p-3 rounded-xl border border-slate-800/80">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                Quick Story Starters (Click to load and send):
+                {t.pubStartersTitle}
               </span>
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
-                  onClick={() => handleSendInfodump('My landlord refuses to return my $3,500 security deposit for minor scuffs on the floor after a 2-year lease.')}
+                  onClick={() => handleSendInfodump(t.pubQuickLandlord)}
                   className="text-[11px] px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 transition text-left"
                 >
-                  🏠 Landlord keeping $3,500 deposit for minor scuffs
+                  {t.pubStarterLandlord}
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleSendInfodump('My company fired me on the spot with zero notice because I asked for $4,200 in unpaid overtime hours.')}
+                  onClick={() => handleSendInfodump(t.pubQuickEmployer)}
                   className="text-[11px] px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 transition text-left"
                 >
-                  💼 Fired without notice after requesting overtime pay
+                  {t.pubStarterEmployer}
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleSendInfodump('I bought a $2,850 gaming laptop from a shop and the motherboard failed in 3 weeks. Seller says "no refunds".')}
+                  onClick={() => handleSendInfodump(t.pubStarterLaptopMsg)}
                   className="text-[11px] px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 transition text-left"
                 >
-                  💻 Bought broken laptop; merchant refused refund
+                  {t.pubStarterLaptop}
                 </button>
               </div>
             </div>
 
             {/* Message History */}
             <div className="flex-1 overflow-y-auto space-y-4 pr-1">
-              {infodumpMessages.map((msg) => (
+              {infodumpMessages.map((msg, index) => (
+                <React.Fragment key={msg.id}>
+                {index > 0 && <div className="h-px bg-slate-600 my-1" />}
                 <div
                   key={msg.id}
                   className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
@@ -492,7 +569,7 @@ export const PublicView: React.FC<PublicViewProps> = ({
                         : 'bg-slate-950 border border-slate-800 text-slate-200 shadow-inner'
                     }`}
                   >
-                    <p className="whitespace-pre-wrap leading-relaxed">{msg.text}</p>
+                    <FormattedText text={msg.id === 'iris-intro' ? t.pubIntro : msg.text} />
 
                     {/* Context Badge if detected */}
                     {msg.extractedCaseContext && (
@@ -521,13 +598,14 @@ export const PublicView: React.FC<PublicViewProps> = ({
                     </div>
                   </div>
                 </div>
+                </React.Fragment>
               ))}
 
               {isProcessingInfodump && (
                 <div className="flex justify-start">
                   <div className="bg-slate-950 border border-slate-800 rounded-2xl p-3.5 text-xs text-slate-300 flex items-center space-x-2">
                     <div className="w-3.5 h-3.5 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
-                    <span>Iris is analyzing your story under Singapore statutes...</span>
+                    <span>{t.pubAnalyzingStory}</span>
                   </div>
                 </div>
               )}
@@ -550,6 +628,40 @@ export const PublicView: React.FC<PublicViewProps> = ({
                   disabled={isProcessingInfodump}
                   className="flex-1 bg-slate-950 border border-slate-700 rounded-xl p-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-red-500 resize-none"
                 />
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => (isListening ? recognitionRef.current?.stop() : setShowSpeechMenu((v) => !v))}
+                    disabled={isProcessingInfodump || !speechSupported}
+                    title={speechSupported ? (isListening ? t.pubStopTitle : t.pubSpeakTitle) : t.pubSpeechUnsupported}
+                    className={`h-full px-4 rounded-xl text-xs flex flex-col items-center justify-center space-y-1 transition border disabled:opacity-40 ${
+                      isListening ? 'bg-red-900 border-red-500 text-white animate-pulse' : 'bg-slate-900 border-slate-700 text-slate-200 hover:bg-slate-800'
+                    }`}
+                  >
+                    {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+                    <span>{isListening ? t.pubStop : t.pubSpeak}</span>
+                  </button>
+                  {showSpeechMenu && !isListening && (
+                    <div className="absolute bottom-full right-0 mb-2 z-20 min-w-[150px] bg-slate-900 border border-slate-700 rounded-xl shadow-xl overflow-hidden">
+                      <p className="px-3 py-2 text-[10px] uppercase tracking-wide text-slate-500 border-b border-slate-800">
+                        {t.pubSpeechLangTitle}
+                      </p>
+                      {SPEECH_OPTIONS.map((opt) => (
+                        <button
+                          key={opt.code}
+                          type="button"
+                          onClick={() => {
+                            setShowSpeechMenu(false);
+                            startListening(opt.code);
+                          }}
+                          className="block w-full text-left px-3 py-2 text-xs text-slate-200 hover:bg-slate-800"
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 <button
                   type="submit"
                   disabled={!infodumpText.trim() || isProcessingInfodump}
@@ -559,6 +671,8 @@ export const PublicView: React.FC<PublicViewProps> = ({
                   <span>{t.infodumpSend}</span>
                 </button>
               </div>
+              {speechNote && <p className="text-[11px] text-slate-400">{speechNote}</p>}
+              {!speechSupported && <p className="text-[11px] text-slate-500">{t.pubSpeechChromeNote}</p>}
             </form>
           </div>
 
@@ -569,7 +683,7 @@ export const PublicView: React.FC<PublicViewProps> = ({
                 <div className="flex items-center space-x-2 border-b border-slate-800 pb-3">
                   <Sparkles className="w-4 h-4 text-amber-300" />
                   <h4 className="text-xs font-bold uppercase tracking-wider text-white">
-                    Live Legal Issue Breakdown
+                    {t.pubLiveBreakdown}
                   </h4>
                 </div>
 
@@ -640,10 +754,10 @@ export const PublicView: React.FC<PublicViewProps> = ({
                   <HelpCircle className="w-6 h-6" />
                 </div>
                 <h4 className="text-sm font-bold text-white font-serif">
-                  Awaiting Your Story
+                  {t.pubAwaitingStory}
                 </h4>
                 <p className="text-xs text-slate-400 leading-relaxed">
-                  Type your situation in the chat or pick one of the quick starter stories. Iris will immediately recognize the applicable Singapore statutes and legal avenues!
+                  {t.pubAwaitingStoryBody}
                 </p>
               </div>
             )}
@@ -716,14 +830,14 @@ export const PublicView: React.FC<PublicViewProps> = ({
                   onChange={(e) => setCategory(e.target.value as PublicCaseCategory)}
                   className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-red-500"
                 >
-                  <option value="tenancy">Residential Tenancy / Rental Deposit (CEA Template)</option>
-                  <option value="employment">Employment / Wrongful Dismissal / Unpaid Salary (EA)</option>
-                  <option value="consumer">Consumer Dispute / Defective Goods (CPFTA Lemon Law)</option>
-                  <option value="harassment">Neighbour / Cyber Harassment / Stalking (POHA)</option>
-                  <option value="small_claims">Small Claims / Debt Under $20,000 (SCTA)</option>
-                  <option value="contract">Breach of Commercial / Private Contract</option>
-                  <option value="negligence">Negligence / Property Damage / Slip & Fall</option>
-                  <option value="family_estate">Probate / Estate / Family Dispute</option>
+                  <option value="tenancy">{t.pubCatTenancy}</option>
+                  <option value="employment">{t.pubCatEmployment}</option>
+                  <option value="consumer">{t.pubCatConsumer}</option>
+                  <option value="harassment">{t.pubCatHarassment}</option>
+                  <option value="small_claims">{t.pubCatSmallClaims}</option>
+                  <option value="contract">{t.pubCatContract}</option>
+                  <option value="negligence">{t.pubCatNegligence}</option>
+                  <option value="family_estate">{t.pubCatFamily}</option>
                 </select>
               </div>
 
@@ -781,10 +895,10 @@ export const PublicView: React.FC<PublicViewProps> = ({
                 </label>
                 <div className="grid grid-cols-4 gap-2">
                   {[
-                    { id: 'landlord', label: 'Landlord' },
-                    { id: 'employer', label: 'Employer' },
-                    { id: 'business', label: 'Merchant' },
-                    { id: 'individual', label: 'Individual' }
+                    { id: 'landlord', label: t.pubPartyLandlord },
+                    { id: 'employer', label: t.pubPartyEmployer },
+                    { id: 'business', label: t.pubPartyMerchant },
+                    { id: 'individual', label: t.pubPartyIndividual }
                   ].map((item) => (
                     <button
                       key={item.id}
@@ -873,7 +987,7 @@ export const PublicView: React.FC<PublicViewProps> = ({
                   <Scale className="w-8 h-8" />
                 </div>
                 <h3 className="text-lg font-bold text-white font-serif">
-                  Awaiting Case Submission
+                  {t.pubAwaitingCase}
                 </h3>
                 <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
                   Click &quot;Analyze Case under Singapore Law&quot; or choose one of the real-world Singapore scenario presets on the left. Iris will calculate case viability, statutory forums, flaws, evidence required, and an action plan.
@@ -883,7 +997,7 @@ export const PublicView: React.FC<PublicViewProps> = ({
                   onClick={() => handleAnalyze()}
                   className="inline-flex items-center space-x-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-semibold px-4 py-2 rounded-xl transition"
                 >
-                  <span>Analyze Loaded Tenancy Preset</span>
+                  <span>{t.pubSamplePresetLabel}</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </button>
               </div>
@@ -1038,7 +1152,7 @@ export const PublicView: React.FC<PublicViewProps> = ({
                           {t.flawsTitle}
                         </h4>
                         <span className="text-xs text-slate-400">
-                          Anticipate opposing arguments & court scrutiny
+                          {t.pubAnticipate}
                         </span>
                       </div>
 
@@ -1068,11 +1182,11 @@ export const PublicView: React.FC<PublicViewProps> = ({
 
                             <div className="text-xs space-y-1.5 text-slate-300">
                               <p>
-                                <strong className="text-slate-400">Impact on Case: </strong>
+                                <strong className="text-slate-400">{t.pubImpactOnCase} </strong>
                                 {flaw.impactOnCase}
                               </p>
                               <p className="text-emerald-300">
-                                <strong>Recommended Mitigation: </strong>
+                                <strong>{t.pubMitigation} </strong>
                                 {flaw.counterStrategy}
                               </p>
                               <p className="text-[11px] text-slate-500 font-mono">
@@ -1114,10 +1228,10 @@ export const PublicView: React.FC<PublicViewProps> = ({
                             </div>
 
                             <p className="text-xs text-slate-300">
-                              <strong>Legal Purpose: </strong>{item.purpose}
+                              <strong>{t.pubLegalPurpose} </strong>{item.purpose}
                             </p>
                             <p className="text-xs text-slate-400">
-                              <strong>How to Obtain: </strong>{item.howToObtain}
+                              <strong>{t.pubHowToObtain} </strong>{item.howToObtain}
                             </p>
                             <p className="text-[11px] text-amber-300/80 font-mono">
                               {item.evidenceActNote}
@@ -1159,6 +1273,8 @@ export const PublicView: React.FC<PublicViewProps> = ({
                     </div>
                   )}
 
+                  {analysisResult && activeTab !== 'chat' && <SourceFlags text={JSON.stringify(analysisResult)} language={language} />}
+
                   {/* TAB 5: CONVERSATIONAL LEGAL CHAT */}
                   {activeTab === 'chat' && (
                     <div className="space-y-4 flex flex-col h-[460px]">
@@ -1168,12 +1284,14 @@ export const PublicView: React.FC<PublicViewProps> = ({
                           <span>{t.conversationalLegalChat}</span>
                         </h4>
                         <span className="text-[10px] text-slate-400">
-                          Grounded in Singapore Statutes & Court Precedents
+                          {t.pubGroundedIn}
                         </span>
                       </div>
 
                       <div className="flex-1 overflow-y-auto space-y-3 pr-1">
-                        {chatMessages.map((msg) => (
+                        {chatMessages.map((msg, index) => (
+                          <React.Fragment key={msg.id}>
+                          {index > 0 && <div className="h-px bg-slate-600 my-1" />}
                           <div
                             key={msg.id}
                             className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
@@ -1185,7 +1303,8 @@ export const PublicView: React.FC<PublicViewProps> = ({
                                   : 'bg-slate-950 border border-slate-800 text-slate-200 shadow-inner'
                               }`}
                             >
-                              <p className="whitespace-pre-wrap leading-relaxed">{msg.text}</p>
+                              <FormattedText text={msg.id === 'iris-intro' ? t.pubIntro : msg.text} />
+                              {msg.sender !== 'user' && <SourceFlags text={msg.text} language={language} />}
                               {msg.statutoryCitations && msg.statutoryCitations.length > 0 && (
                                 <div className="pt-2 border-t border-slate-800/80 text-[10px] text-amber-300 font-mono">
                                   📚 Citations: {msg.statutoryCitations.join(' • ')}
@@ -1196,12 +1315,13 @@ export const PublicView: React.FC<PublicViewProps> = ({
                               </div>
                             </div>
                           </div>
+                          </React.Fragment>
                         ))}
                         {isSendingChat && (
                           <div className="flex justify-start">
                             <div className="bg-slate-950 border border-slate-800 rounded-2xl p-3 text-xs text-slate-400 flex items-center space-x-2">
                               <div className="w-3 h-3 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
-                              <span>Iris Singapore Legal Counsel is responding...</span>
+                              <span>{t.pubRespondingNow}</span>
                             </div>
                           </div>
                         )}
@@ -1222,7 +1342,7 @@ export const PublicView: React.FC<PublicViewProps> = ({
                           className="px-4 py-2.5 bg-red-700 hover:bg-red-600 disabled:opacity-50 text-white rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition"
                         >
                           <Send className="w-3.5 h-3.5" />
-                          <span>Send</span>
+                          <span>{t.pubSend}</span>
                         </button>
                       </form>
                     </div>

@@ -2,14 +2,15 @@ import express, { Request, Response } from 'express';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { GoogleGenAI } from '@google/genai';
+import Anthropic from '@anthropic-ai/sdk';
+
+const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || 'claude-haiku-5-5';
 import {
   calculateLimitationPeriod,
   determineSingaporeForum,
   calculateCaseMeritScore,
   parseIncomingEmailToCase,
   synthesizePublicAnalysis,
-  synthesizeCorporateDualSideAudit,
   classifyPublicInfodump,
   getLocalizedInfodumpInitialReply
 } from './src/utils/singaporeLawEngine.ts';
@@ -25,20 +26,33 @@ const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
 app.use(express.json({ limit: '25mb' }));
 
-// Helper to initialize Gemini SDK if key is configured and not placeholder
-function getGeminiClient(): GoogleGenAI | null {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey || apiKey === 'MY_GEMINI_API_KEY' || apiKey.startsWith('MY_') || apiKey.length < 10) {
+// Anthropic client, exposed with the same generateContent call shape the routes already use.
+function getAIClient() {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey || apiKey.startsWith('MY_') || apiKey.length < 10) {
     return null;
   }
-  return new GoogleGenAI({
-    apiKey,
-    httpOptions: {
-      headers: {
-        'User-Agent': 'aistudio-build'
+  const client = new Anthropic({ apiKey });
+  return {
+    models: {
+      generateContent: async ({ contents, config }: { model?: string; contents: string; config?: { responseMimeType?: string; maxOutputTokens?: number; temperature?: number; noThinking?: boolean } }) => {
+        const wantsJson = config?.responseMimeType === 'application/json';
+        const message = await client.messages.create({
+          model: ANTHROPIC_MODEL,
+          max_tokens: config?.maxOutputTokens ?? 16000,
+          ...(config?.noThinking ? { thinking: { type: 'disabled' as const } } : {}),
+          messages: [
+            {
+              role: 'user',
+              content: wantsJson ? `${contents}\n\nReturn only valid JSON, with no code fences or commentary.` : contents
+            }
+          ]
+        });
+        const text = message.content.map((block) => (block.type === 'text' ? block.text : '')).join('').trim();
+        return { text: wantsJson ? text.replace(/^```(?:json)?\s*|\s*```$/g, '') : text };
       }
     }
-  });
+  };
 }
 
 // Timeout wrapper to prevent hanging network calls with generous threshold for Cloud Run & LLM generation
@@ -67,18 +81,18 @@ app.post('/api/public/infodump', async (req: Request, res: Response) => {
     }
 
     const classification = classifyPublicInfodump(narrativeText);
-    const ai = getGeminiClient();
+    const ai = getAIClient();
 
     if (ai) {
       try {
         const langInstructions = {
-          en: 'Reply in warm, reassuring, everyday English without confusing jargon.',
-          zh: '请用温暖、亲切且易懂的简体中文回答，不要使用晦涩难懂的法言法语，让普通老百姓一目了然。',
-          ms: 'Sila jawab dalam Bahasa Melayu yang mesra, tenang, dan mudah difahami oleh orang awam.',
-          ta: 'தயவுசெய்து எளிய மற்றும் பாசமான தமிழில் பதிலளிக்கவும்.'
-        }[language as 'en' | 'zh' | 'ms' | 'ta'] || 'Reply in warm, accessible English.';
+          en: 'Reply in plain, direct, everyday English without jargon.',
+          zh: '请用直接、简明且易懂的简体中文回答，不要使用晦涩难懂的法言法语，让普通老百姓一目了然。',
+          ms: 'Sila jawab dalam Bahasa Melayu yang terus, jelas, dan mudah difahami oleh orang awam.',
+          ta: 'தயவுசெய்து எளிய மற்றும் நேரடியான தமிழில் பதிலளிக்கவும்.'
+        }[language as 'en' | 'zh' | 'ms' | 'ta'] || 'Reply in plain, direct English.';
 
-        const prompt = `You are Iris, an empathetic Singapore Legal Intelligence Assistant for the everyday general public.
+        const prompt = `You are Iris, a direct Singapore Legal Intelligence Assistant for the everyday general public.
 The user is sharing what happened to them without knowing legal categories or jargon.
 Language: ${langInstructions}
 
@@ -86,21 +100,24 @@ User Story:
 "${narrativeText}"
 
 Task:
-1. Warmly acknowledge their emotional situation and validate their concern.
+1. State the legal position in one sentence. Do not comment on their feelings.
 2. Clearly identify their legal rights and cause of action under Singapore Law (e.g. Employment Act 1968, Protection from Harassment Act POHA 2014, Consumer Protection Fair Trading Act CPFTA Lemon Law, Small Claims Tribunals Act).
 3. Outline what they can do next in simple, actionable terms (e.g. Small Claims Tribunal via CJTS, TADM mediation, POHA Court).
 4. Highlight 2-3 specific pieces of evidence they must preserve (Evidence Act s 103/116A: WhatsApp logs, receipts, contracts).
 5. Ask 1-2 friendly follow-up questions to understand their situation better.
 
-Be encouraging, clear, and reassuring.`;
+Be direct and factual. Do not reassure, sympathise, encourage, or praise. Keep the whole reply under 180 words. One short line per point.
+Use these section titles in bold, in this order: **LEGAL ACTS & CHARTERS**, **NEXT STEPS**, **RETAIN THESE INFORMATION**, **FOLLOW-UP QUESTIONS**.
+Formatting: put each section title on its own line in bold, for example **NEXT STEPS**. Use lines starting with "- " for bullet points.`;
 
         // Use gemini-3.1-flash-lite for instant conversational intake with 20s timeout
         const response = await callWithTimeout(
           ai.models.generateContent({
-            model: 'gemini-3.1-flash-lite',
+            model: ANTHROPIC_MODEL,
             contents: prompt,
             config: {
-              maxOutputTokens: 1200,
+              maxOutputTokens: 8000,
+              noThinking: true,
               temperature: 0.5
             }
           }),
@@ -132,6 +149,40 @@ Be encouraging, clear, and reassuring.`;
   }
 });
 
+// POST Translate a spoken or typed account into English before classification
+app.post('/api/public/translate', async (req: Request, res: Response) => {
+  try {
+    const { text, sourceLanguage = 'en' } = req.body;
+    if (!text || !String(text).trim()) {
+      return res.status(400).json({ error: 'Text required' });
+    }
+
+    const ai = getAIClient();
+    if (ai && sourceLanguage !== 'en') {
+      try {
+        const response = await callWithTimeout(
+          ai.models.generateContent({
+            model: ANTHROPIC_MODEL,
+            contents: `Translate the following account into plain English. Keep names, dates, amounts and places exactly as given. Return only the translation, with no commentary.\n\n${text}`,
+            config: { maxOutputTokens: 800, temperature: 0 }
+          }),
+          15000
+        );
+        if (response.text) {
+          return res.json({ english: response.text.trim(), translated: true });
+        }
+      } catch (geminiErr: any) {
+        console.info('[Iris Legal AI] Translation fell back to original text:', geminiErr?.message || geminiErr);
+      }
+    }
+
+    return res.json({ english: String(text).trim(), translated: false });
+  } catch (err: any) {
+    console.error('Error in /api/public/translate:', err);
+    res.status(500).json({ error: err.message || 'Internal server error' });
+  }
+});
+
 // POST Public Case Analysis
 app.post('/api/public/analyze', async (req: Request, res: Response) => {
   try {
@@ -143,7 +194,7 @@ app.post('/api/public/analyze', async (req: Request, res: Response) => {
     // Baseline calculation from deterministic Singapore Law Engine
     const baseline = synthesizePublicAnalysis(input);
 
-    const ai = getGeminiClient();
+    const ai = getAIClient();
     if (ai) {
       try {
         const langInstructions = {
@@ -240,7 +291,7 @@ Return a valid JSON object matching this schema:
 
         const response = await callWithTimeout(
           ai.models.generateContent({
-            model: 'gemini-3.8-flash',
+            model: ANTHROPIC_MODEL,
             contents: prompt,
             config: {
               responseMimeType: 'application/json'
@@ -253,7 +304,7 @@ Return a valid JSON object matching this schema:
           const parsed = JSON.parse(response.text);
           // Enrich with exact limitation calculation
           parsed.limitationStatus = baseline.limitationStatus;
-          return res.json({ result: parsed, source: 'gemini-3.8-flash' });
+          return res.json({ result: parsed, source: ANTHROPIC_MODEL });
         }
       } catch (aiErr: any) {
         console.info('[Iris Legal AI] Gemini analysis call fell back to Singapore statutory engine:', aiErr?.message || aiErr);
@@ -277,7 +328,7 @@ app.post('/api/public/chat', async (req: Request, res: Response) => {
     }
 
     const lastMessage = messages[messages.length - 1]?.text || '';
-    const ai = getGeminiClient();
+    const ai = getAIClient();
 
     if (ai) {
       try {
@@ -306,14 +357,16 @@ User Question: "${lastMessage}"
 Conversation History:
 ${messages.slice(-4, -1).map((m: any) => `${m.sender.toUpperCase()}: ${m.text}`).join('\n')}
 
-Provide a thorough, direct, empathetic, and legally precise answer.`;
+Give a direct answer in under 250 words, starting with the answer. Do not reassure, sympathise, or encourage. Be legally precise.
+Formatting: put each section title on its own line in bold, for example **NEXT STEPS**. Use lines starting with "- " for bullet points.`;
 
         const response = await callWithTimeout(
           ai.models.generateContent({
-            model: 'gemini-3.1-flash-lite',
+            model: ANTHROPIC_MODEL,
             contents: prompt,
             config: {
-              maxOutputTokens: 1200,
+              maxOutputTokens: 8000,
+              noThinking: true,
               temperature: 0.5
             }
           }),
@@ -371,9 +424,8 @@ app.post('/api/corporate/email-to-case', async (req: Request, res: Response) => 
 app.post('/api/corporate/analyze', async (req: Request, res: Response) => {
   try {
     const { caseData, language = 'en' } = req.body;
-    const fallbackAudit = synthesizeCorporateDualSideAudit(caseData);
 
-    const ai = getGeminiClient();
+    const ai = getAIClient();
     if (ai && caseData) {
       try {
         const prompt = `You are a Senior Singapore Corporate Litigation Counsel & Partner.
@@ -446,9 +498,88 @@ Return a JSON matching this schema:
   ]
 }`;
 
+        let response: any = null;
+        let auditContents = prompt;
+        let speedFocus = false;
+        for (let attempt = 0; attempt < 3 && !response?.text; attempt++) {
+          if (attempt > 0 && !speedFocus) await new Promise((resolve) => setTimeout(resolve, 3000));
+          try {
+            response = await callWithTimeout(
+              ai.models.generateContent({
+                model: ANTHROPIC_MODEL,
+                contents: auditContents,
+                config: {
+                  responseMimeType: 'application/json'
+                }
+              }),
+              300000
+            );
+          } catch (attemptErr: any) {
+            const timedOut = String(attemptErr?.message || '').includes('timeout');
+            console.info(`[Iris Legal AI] Corporate audit attempt ${attempt + 1} failed:`, attemptErr?.message || attemptErr);
+            if (!timedOut) continue;
+            if (speedFocus) break;
+            speedFocus = true;
+            console.info('[Iris Legal AI] Audit passed 5 minutes. Switching to speed focus.');
+            auditContents = `${prompt}\n\nSPEED FOCUS (overrides the exhaustive requirement above): the exhaustive audit ran past 5 minutes. Return only the 3 most serious claimant flaws and the 3 most serious respondent flaws. Keep every field to one short sentence. Leave out all other points.`;
+          }
+        }
+
+        if (response?.text) {
+          const parsed = JSON.parse(response.text);
+          return res.json({ result: parsed, source: ANTHROPIC_MODEL, mode: speedFocus ? 'speed' : 'exhaustive' });
+        }
+      } catch (aiErr: any) {
+        console.info('[Iris Legal AI] Corporate dual-side AI call fell back to statutory dossier engine:', aiErr?.message || aiErr);
+      }
+    }
+
+    return res.status(503).json({ error: 'AI audit unavailable. Wait a minute, then run the audit again.' });
+  } catch (err: any) {
+    console.error('Error in /api/corporate/analyze:', err);
+    res.status(500).json({ error: err.message || 'Internal server error' });
+  }
+});
+
+// POST Compare Audit Points with a Court Ruling
+app.post('/api/corporate/compare-ruling', async (req: Request, res: Response) => {
+  try {
+    const { flaws, ruling, language = 'en' } = req.body;
+    if (!Array.isArray(flaws) || flaws.length === 0 || !ruling) {
+      return res.status(400).json({ error: 'Audit points and ruling required' });
+    }
+
+    const ai = getAIClient();
+    if (!ai) return res.status(503).json({ error: 'AI unavailable' });
+
+    const prompt = `You are a Singapore litigation counsel checking an internal audit against a court ruling.
+Language: ${language}
+
+Court ruling:
+Final decision: ${ruling.finalDecision}
+Deciding factors: ${JSON.stringify(ruling.decidingFactors || [])}
+Influencing factors: ${JSON.stringify(ruling.influencingFactors || [])}
+
+Audit points:
+${JSON.stringify(flaws)}
+
+Task: for each audit point, decide whether the court used it.
+- "used": the court's decision, deciding factors, or influencing factors rely on this point or a point that covers it.
+- "ignored": the court did not rely on this point.
+Give a reason of one sentence for each point. Do not invent court reasoning that is not in the ruling.
+
+Return JSON in this form:
+{"results":[{"id":"<audit point id>","status":"used" | "ignored","reason":"..."}]}`;
+
+    let parsed: any = null;
+    let lastErr: any = null;
+    const attempts = [ANTHROPIC_MODEL, ANTHROPIC_MODEL, ANTHROPIC_MODEL];
+    for (const [attempt, model] of attempts.entries()) {
+      if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 3000 * attempt));
+      try {
         const response = await callWithTimeout(
           ai.models.generateContent({
-            model: 'gemini-3.8-flash',
+            model,
             contents: prompt,
             config: {
               responseMimeType: 'application/json'
@@ -456,20 +587,21 @@ Return a JSON matching this schema:
           }),
           35000
         );
-
-        if (response.text) {
-          const parsed = JSON.parse(response.text);
-          return res.json({ result: parsed, source: 'gemini-3.8-flash' });
-        }
-      } catch (aiErr: any) {
-        console.info('[Iris Legal AI] Corporate dual-side AI call fell back to statutory dossier engine:', aiErr?.message || aiErr);
+        parsed = JSON.parse(response.text || '{"results":[]}');
+        break;
+      } catch (modelErr: any) {
+        lastErr = modelErr;
+        console.info(`[Iris Legal AI] Ruling comparison failed on ${model}:`, modelErr?.message || modelErr);
       }
     }
 
-    return res.json({ result: fallbackAudit, source: 'deterministic-sg-engine' });
+    if (!parsed) {
+      return res.status(503).json({ error: lastErr?.message || 'AI unavailable' });
+    }
+    return res.json({ results: parsed.results || [] });
   } catch (err: any) {
-    console.error('Error in /api/corporate/analyze:', err);
-    res.status(500).json({ error: err.message || 'Internal server error' });
+    console.error('Error in /api/corporate/compare-ruling:', err);
+    res.status(500).json({ error: err.message || 'Comparison failed' });
   }
 });
 
