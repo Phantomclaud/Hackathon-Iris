@@ -353,6 +353,11 @@ export const CorporateView: React.FC<CorporateViewProps> = ({ language }) => {
   const [isParsingEmail, setIsParsingEmail] = useState(false);
   const [importedEmails, setImportedEmails] = useState<ParsedEmail[]>([]);
   const [selectedEmailIndex, setSelectedEmailIndex] = useState<number | null>(null);
+  const [agentTask, setAgentTask] = useState('');
+  const [agentRunning, setAgentRunning] = useState(false);
+  const [agentSteps, setAgentSteps] = useState<{ tool: string; input: any; ok: boolean }[]>([]);
+  const [agentResult, setAgentResult] = useState<any>(null);
+  const [agentError, setAgentError] = useState('');
 
   // New Folder Creation State
   const [isAddFolderModalOpen, setIsAddFolderModalOpen] = useState(false);
@@ -494,6 +499,38 @@ export const CorporateView: React.FC<CorporateViewProps> = ({ language }) => {
     setEmailTopic(email.subject);
     setEmailSender(email.from);
     setEmailBody(email.body);
+  };
+
+  const runEmailAgent = async () => {
+    setAgentRunning(true);
+    setAgentError('');
+    setAgentSteps([]);
+    setAgentResult(null);
+    try {
+      const response = await fetch('/api/corporate/email-agent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ task: agentTask, language })
+      });
+      if (!response.ok) throw new Error(String(response.status));
+      const data = await response.json();
+      setAgentSteps(data.steps);
+      setAgentResult(data.result);
+    } catch (err) {
+      console.error('Email agent failed:', err);
+      setAgentError('The email assistant is unavailable right now. Wait a moment, then try again.');
+    } finally {
+      setAgentRunning(false);
+    }
+  };
+
+  const useAgentEmail = () => {
+    const email = agentResult?.email;
+    if (!email) return;
+    setEmailTopic(email.subject);
+    setEmailSender(email.from);
+    setEmailBody(email.body);
+    setSelectedEmailIndex(null);
   };
 
   // Parse Email to Create New Case
@@ -2070,6 +2107,58 @@ export const CorporateView: React.FC<CorporateViewProps> = ({ language }) => {
                       </div>
                     </button>
                   ))}
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-2 rounded-xl border border-slate-800 p-3 bg-slate-950/60">
+              <span className="text-xs font-semibold text-slate-300">Ask Iris to find the email (Gmail)</span>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={agentTask}
+                  onChange={(e) => setAgentTask(e.target.value)}
+                  placeholder="e.g. the client's email about the termination letter from last month"
+                  className="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+                <button
+                  type="button"
+                  onClick={runEmailAgent}
+                  disabled={agentRunning || !agentTask.trim()}
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 rounded-xl text-xs font-semibold transition disabled:opacity-40 cursor-pointer"
+                >
+                  {agentRunning ? 'Searching...' : 'Find'}
+                </button>
+              </div>
+
+              {agentSteps.length > 0 && (
+                <div className="space-y-1 text-[11px] text-slate-400 font-mono">
+                  {agentSteps.map((step, i) => (
+                    <div key={i}>
+                      {step.ok ? '✓' : '✗'} {step.tool} {JSON.stringify(step.input)}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {agentError && <p className="text-[11px] text-rose-300">{agentError}</p>}
+              {agentResult && !agentResult.found && <p className="text-[11px] text-slate-400">{agentResult.reason}</p>}
+
+              {agentResult?.found && agentResult.email && (
+                <div className="space-y-2 text-xs">
+                  <p className="text-slate-200">
+                    <strong>{agentResult.email.subject}</strong>
+                    <br />
+                    <span className="text-slate-400">From: {agentResult.email.from}</span>
+                  </p>
+                  <p className="text-[11px] text-slate-400">{agentResult.reason}</p>
+                  <button
+                    type="button"
+                    onClick={useAgentEmail}
+                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 rounded-xl text-xs font-semibold transition cursor-pointer"
+                  >
+                    Use this email
+                  </button>
                 </div>
               )}
             </div>

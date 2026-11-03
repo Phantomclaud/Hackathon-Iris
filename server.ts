@@ -3,6 +3,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import Anthropic from '@anthropic-ai/sdk';
+import { GMAIL_TOOLS, runGmailTool } from './src/utils/gmailTools.ts';
 
 const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || 'claude-haiku-5-5';
 import {
@@ -602,6 +603,88 @@ Return JSON in this form:
   } catch (err: any) {
     console.error('Error in /api/corporate/compare-ruling:', err);
     res.status(500).json({ error: err.message || 'Comparison failed' });
+  }
+});
+
+// POST Email agent: Claude chooses Gmail tools to find the email a task describes
+app.post('/api/corporate/email-agent', async (req: Request, res: Response) => {
+  try {
+    const { task, language = 'en' } = req.body;
+    if (!task || !String(task).trim()) {
+      return res.status(400).json({ error: 'Task required' });
+    }
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey || apiKey.length < 10) {
+      return res.status(503).json({ error: 'AI is not configured' });
+    }
+
+    const client = new Anthropic({ apiKey });
+    const system = `You are a litigation assistant for a Singapore law firm. You can search and read the firm's Gmail with the tools provided. Use them to find the one email that the task describes. Do not guess. Only report emails the tools return.
+When you have found the email, reply with only this JSON: {"found": true, "id": "<message id>", "reason": "one sentence on why it matches"}.
+If no email matches, or Gmail is unavailable, reply with only this JSON: {"found": false, "reason": "one sentence"}.
+Language for the reason: ${language}.`;
+
+    const messages: any[] = [{ role: 'user', content: String(task) }];
+    const steps: { tool: string; input: any; ok: boolean }[] = [];
+    const readEmails: Record<string, any> = {};
+    let finalText = '';
+
+    for (let turn = 0; turn < 6; turn++) {
+      const response: any = await client.messages.create({
+        model: ANTHROPIC_MODEL,
+        max_tokens: 8000,
+        system,
+        tools: GMAIL_TOOLS as any,
+        messages
+      } as any);
+      messages.push({ role: 'assistant', content: response.content });
+
+      if (response.stop_reason !== 'tool_use') {
+        finalText = response.content
+          .filter((block: any) => block.type === 'text')
+          .map((block: any) => block.text)
+          .join('')
+          .trim();
+        break;
+      }
+
+      const toolResults: any[] = [];
+      for (const block of response.content.filter((b: any) => b.type === 'tool_use')) {
+        let output: any;
+        let isError = false;
+        try {
+          output = await runGmailTool(block.name, block.input);
+          if (output?.error) isError = true;
+        } catch (toolErr: any) {
+          output = { error: toolErr?.message || 'Tool failed' };
+          isError = true;
+        }
+        if (block.name === 'read_email' && !isError && output?.id) readEmails[output.id] = output;
+        steps.push({ tool: block.name, input: block.input, ok: !isError });
+        toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: JSON.stringify(output), is_error: isError });
+      }
+      messages.push({ role: 'user', content: toolResults });
+    }
+
+    const jsonText = finalText.replace(/^```(?:json)?\s*|\s*```$/g, '');
+    let result: any;
+    try {
+      result = JSON.parse(jsonText);
+    } catch {
+      result = { found: false, reason: 'The assistant did not return a usable answer.' };
+    }
+    if (result.found && result.id && readEmails[result.id]) {
+      const email = readEmails[result.id];
+      result.email = { id: email.id, from: email.from, subject: email.subject, date: email.date, body: email.body };
+    } else if (result.found) {
+      result.found = false;
+      result.reason = 'The email was identified but not read. Try the search again with a more specific query.';
+    }
+
+    return res.json({ steps, result });
+  } catch (err: any) {
+    console.error('Error in /api/corporate/email-agent:', err);
+    res.status(500).json({ error: err.message || 'Email agent failed' });
   }
 });
 
